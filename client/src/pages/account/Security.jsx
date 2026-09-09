@@ -1,12 +1,22 @@
-import { useContext, useState } from 'react'
-import { Link } from 'react-router-dom'
+import {
+  useContext,
+  useEffect,
+  useState,
+} from 'react'
+
+import {
+  Link,
+} from 'react-router-dom'
 
 import {
   Eye,
   EyeOff,
   Laptop,
   LockKeyhole,
+  Monitor,
   ShieldCheck,
+  Smartphone,
+  Tablet,
   X,
 } from 'lucide-react'
 
@@ -20,9 +30,193 @@ import {
   changePassword,
   disableTwoFactor,
   enableTwoFactor,
+  getSessions,
+  revokeOtherSessions,
+  revokeSession,
   setupTwoFactor,
 } from '../../services/authService.js'
 
+
+/* =========================
+   DEVICE HELPERS
+========================= */
+
+function getBrowserName(userAgent = '') {
+  const agent =
+    String(userAgent).toLowerCase()
+
+  if (agent.includes('edg/')) {
+    return 'Microsoft Edge'
+  }
+
+  if (agent.includes('opr/')) {
+    return 'Opera'
+  }
+
+  if (
+    agent.includes('chrome/') &&
+    !agent.includes('edg/')
+  ) {
+    return 'Google Chrome'
+  }
+
+  if (agent.includes('firefox/')) {
+    return 'Mozilla Firefox'
+  }
+
+  if (
+    agent.includes('safari/') &&
+    !agent.includes('chrome/')
+  ) {
+    return 'Safari'
+  }
+
+  return 'Navigateur web'
+}
+
+
+function getOperatingSystem(
+  userAgent = '',
+) {
+  const agent =
+    String(userAgent).toLowerCase()
+
+  if (
+    agent.includes('iphone') ||
+    agent.includes('ipad') ||
+    agent.includes('ios')
+  ) {
+    return 'iOS'
+  }
+
+  if (agent.includes('android')) {
+    return 'Android'
+  }
+
+  if (agent.includes('windows')) {
+    return 'Windows'
+  }
+
+  if (
+    agent.includes('macintosh') ||
+    agent.includes('mac os')
+  ) {
+    return 'macOS'
+  }
+
+  if (agent.includes('linux')) {
+    return 'Linux'
+  }
+
+  return 'Système inconnu'
+}
+
+
+function getDeviceType(
+  userAgent = '',
+) {
+  const agent =
+    String(userAgent).toLowerCase()
+
+  if (
+    agent.includes('ipad') ||
+    agent.includes('tablet')
+  ) {
+    return 'tablet'
+  }
+
+  if (
+    agent.includes('iphone') ||
+    agent.includes('android') ||
+    agent.includes('mobile')
+  ) {
+    return 'mobile'
+  }
+
+  return 'desktop'
+}
+
+
+function DeviceIcon({
+  userAgent,
+  size = 22,
+}) {
+  const type =
+    getDeviceType(userAgent)
+
+  if (type === 'mobile') {
+    return (
+      <Smartphone
+        size={size}
+        strokeWidth={1.6}
+      />
+    )
+  }
+
+  if (type === 'tablet') {
+    return (
+      <Tablet
+        size={size}
+        strokeWidth={1.6}
+      />
+    )
+  }
+
+  return (
+    <Monitor
+      size={size}
+      strokeWidth={1.6}
+    />
+  )
+}
+
+
+function formatDate(value) {
+  if (!value) {
+    return 'Activité inconnue'
+  }
+
+  const date =
+    new Date(value)
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return 'Activité inconnue'
+  }
+
+  return new Intl.DateTimeFormat(
+    'fr-FR',
+    {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    },
+  ).format(date)
+}
+
+
+function getSessionDescription(
+  session,
+) {
+  const browser =
+    getBrowserName(
+      session?.userAgent,
+    )
+
+  const system =
+    getOperatingSystem(
+      session?.userAgent,
+    )
+
+  return `${browser} · ${system}`
+}
+
+
+/* =========================
+   SECURITY PAGE
+========================= */
 
 function Security() {
   const {
@@ -30,24 +224,39 @@ function Security() {
     updateUser,
   } = useContext(AuthContext)
 
-  const [showCurrent, setShowCurrent] =
-    useState(false)
 
-  const [showNew, setShowNew] =
-    useState(false)
+  /* =========================
+     PASSWORD STATE
+  ========================= */
 
-  const [showConfirm, setShowConfirm] =
-    useState(false)
+  const [
+    showCurrent,
+    setShowCurrent,
+  ] = useState(false)
 
-  const [passwordForm, setPasswordForm] =
-    useState({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
+  const [
+    showNew,
+    setShowNew,
+  ] = useState(false)
 
-  const [passwordError, setPasswordError] =
-    useState('')
+  const [
+    showConfirm,
+    setShowConfirm,
+  ] = useState(false)
+
+  const [
+    passwordForm,
+    setPasswordForm,
+  ] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+
+  const [
+    passwordError,
+    setPasswordError,
+  ] = useState('')
 
   const [
     passwordSuccess,
@@ -107,6 +316,82 @@ function Security() {
 
 
   /* =========================
+     SESSION STATE
+  ========================= */
+
+  const [
+    sessions,
+    setSessions,
+  ] = useState([])
+
+  const [
+    sessionsLoading,
+    setSessionsLoading,
+  ] = useState(true)
+
+  const [
+    sessionsError,
+    setSessionsError,
+  ] = useState('')
+
+  const [
+    sessionsSuccess,
+    setSessionsSuccess,
+  ] = useState('')
+
+  const [
+    disconnectingOthers,
+    setDisconnectingOthers,
+  ] = useState(false)
+
+  const [
+    disconnectingSessionId,
+    setDisconnectingSessionId,
+  ] = useState(null)
+
+
+  /* =========================
+     LOAD SESSIONS
+  ========================= */
+
+  const loadSessions =
+    async () => {
+      try {
+        setSessionsLoading(true)
+        setSessionsError('')
+
+        const data =
+          await getSessions()
+
+        const nextSessions =
+          Array.isArray(
+            data?.sessions,
+          )
+            ? data.sessions
+            : []
+
+        setSessions(
+          nextSessions,
+        )
+      } catch (error) {
+        setSessions([])
+
+        setSessionsError(
+          error?.message ||
+            'Impossible de charger les appareils connectés.',
+        )
+      } finally {
+        setSessionsLoading(false)
+      }
+    }
+
+
+  useEffect(() => {
+    loadSessions()
+  }, [])
+
+
+  /* =========================
      PASSWORD
   ========================= */
 
@@ -154,7 +439,8 @@ function Security() {
       }
 
       if (
-        passwordForm.newPassword.length < 8
+        passwordForm.newPassword
+          .length < 8
       ) {
         setPasswordError(
           'Le nouveau mot de passe doit contenir au moins 8 caractères.',
@@ -190,8 +476,10 @@ function Security() {
 
         const data =
           await changePassword(
-            passwordForm.currentPassword,
-            passwordForm.newPassword,
+            passwordForm
+              .currentPassword,
+            passwordForm
+              .newPassword,
           )
 
         setPasswordSuccess(
@@ -220,7 +508,7 @@ function Security() {
 
 
   /* =========================
-     START 2FA SETUP
+     START 2FA
   ========================= */
 
   const handleStartTwoFactor =
@@ -267,7 +555,11 @@ function Security() {
       const cleanCode =
         twoFactorCode.trim()
 
-      if (!/^\d{6}$/.test(cleanCode)) {
+      if (
+        !/^\d{6}$/.test(
+          cleanCode,
+        )
+      ) {
         setTwoFactorError(
           'Saisissez le code à 6 chiffres affiché dans votre application.',
         )
@@ -310,19 +602,20 @@ function Security() {
 
 
   /* =========================
-     OPEN DISABLE FORM
+     OPEN DISABLE 2FA
   ========================= */
 
-  const handleOpenDisable = () => {
-    setDisableMode(true)
+  const handleOpenDisable =
+    () => {
+      setDisableMode(true)
 
-    setTwoFactorSetup(null)
-    setTwoFactorCode('')
-    setDisablePassword('')
+      setTwoFactorSetup(null)
+      setTwoFactorCode('')
+      setDisablePassword('')
 
-    setTwoFactorError('')
-    setTwoFactorSuccess('')
-  }
+      setTwoFactorError('')
+      setTwoFactorSuccess('')
+    }
 
 
   /* =========================
@@ -348,7 +641,11 @@ function Security() {
         return
       }
 
-      if (!/^\d{6}$/.test(cleanCode)) {
+      if (
+        !/^\d{6}$/.test(
+          cleanCode,
+        )
+      ) {
         setTwoFactorError(
           'Saisissez un code de vérification à 6 chiffres.',
         )
@@ -392,22 +689,126 @@ function Security() {
     }
 
 
-  const closeTwoFactorForms = () => {
-    setTwoFactorSetup(null)
-    setDisableMode(false)
+  const closeTwoFactorForms =
+    () => {
+      setTwoFactorSetup(null)
+      setDisableMode(false)
 
-    setTwoFactorCode('')
-    setDisablePassword('')
+      setTwoFactorCode('')
+      setDisablePassword('')
 
-    setTwoFactorError('')
-  }
+      setTwoFactorError('')
+    }
+
+
+  /* =========================
+     DISCONNECT OTHER DEVICES
+  ========================= */
+
+  const handleDisconnectOthers =
+    async () => {
+      if (
+        disconnectingOthers
+      ) {
+        return
+      }
+
+      try {
+        setDisconnectingOthers(
+          true,
+        )
+
+        setSessionsError('')
+        setSessionsSuccess('')
+
+        const data =
+          await revokeOtherSessions()
+
+        setSessionsSuccess(
+          data?.message ||
+            'Les autres appareils ont été déconnectés.',
+        )
+
+        await loadSessions()
+      } catch (error) {
+        setSessionsError(
+          error?.message ||
+            'Impossible de déconnecter les autres appareils.',
+        )
+      } finally {
+        setDisconnectingOthers(
+          false,
+        )
+      }
+    }
+
+
+  /* =========================
+     DISCONNECT ONE DEVICE
+  ========================= */
+
+  const handleDisconnectSession =
+    async (sessionId) => {
+      if (
+        !sessionId ||
+        disconnectingSessionId
+      ) {
+        return
+      }
+
+      try {
+        setDisconnectingSessionId(
+          sessionId,
+        )
+
+        setSessionsError('')
+        setSessionsSuccess('')
+
+        const data =
+          await revokeSession(
+            sessionId,
+          )
+
+        setSessionsSuccess(
+          data?.message ||
+            'L’appareil a été déconnecté.',
+        )
+
+        await loadSessions()
+      } catch (error) {
+        setSessionsError(
+          error?.message ||
+            'Impossible de déconnecter cet appareil.',
+        )
+      } finally {
+        setDisconnectingSessionId(
+          null,
+        )
+      }
+    }
+
+
+  const currentSession =
+    sessions.find(
+      (session) =>
+        session.isCurrent,
+    )
+
+  const otherSessions =
+    sessions.filter(
+      (session) =>
+        !session.isCurrent,
+    )
 
 
   return (
     <main className="security-page">
 
-      <section className="account-hero">
+      {/* =====================
+          HERO
+      ===================== */}
 
+      <section className="account-hero">
         <div className="nova-container">
 
           <h1>
@@ -420,11 +821,14 @@ function Security() {
           </p>
 
         </div>
-
       </section>
 
 
       <div className="nova-container">
+
+        {/* =====================
+            BREADCRUMB
+        ===================== */}
 
         <nav className="account-breadcrumb">
 
@@ -471,12 +875,10 @@ function Security() {
             <section className="security-card security-password-card">
 
               <div className="security-card-icon">
-
                 <LockKeyhole
                   size={25}
                   strokeWidth={1.6}
                 />
-
               </div>
 
 
@@ -519,7 +921,8 @@ function Security() {
                             : 'password'
                         }
                         value={
-                          passwordForm.currentPassword
+                          passwordForm
+                            .currentPassword
                         }
                         onChange={
                           updatePasswordField
@@ -540,9 +943,13 @@ function Security() {
                         aria-label="Afficher ou masquer le mot de passe actuel"
                       >
                         {showCurrent ? (
-                          <EyeOff size={18} />
+                          <EyeOff
+                            size={18}
+                          />
                         ) : (
-                          <Eye size={18} />
+                          <Eye
+                            size={18}
+                          />
                         )}
                       </button>
 
@@ -567,7 +974,8 @@ function Security() {
                             : 'password'
                         }
                         value={
-                          passwordForm.newPassword
+                          passwordForm
+                            .newPassword
                         }
                         onChange={
                           updatePasswordField
@@ -589,9 +997,13 @@ function Security() {
                         aria-label="Afficher ou masquer le nouveau mot de passe"
                       >
                         {showNew ? (
-                          <EyeOff size={18} />
+                          <EyeOff
+                            size={18}
+                          />
                         ) : (
-                          <Eye size={18} />
+                          <Eye
+                            size={18}
+                          />
                         )}
                       </button>
 
@@ -617,7 +1029,8 @@ function Security() {
                             : 'password'
                         }
                         value={
-                          passwordForm.confirmPassword
+                          passwordForm
+                            .confirmPassword
                         }
                         onChange={
                           updatePasswordField
@@ -639,9 +1052,13 @@ function Security() {
                         aria-label="Afficher ou masquer la confirmation"
                       >
                         {showConfirm ? (
-                          <EyeOff size={18} />
+                          <EyeOff
+                            size={18}
+                          />
                         ) : (
-                          <Eye size={18} />
+                          <Eye
+                            size={18}
+                          />
                         )}
                       </button>
 
@@ -653,7 +1070,9 @@ function Security() {
                   <button
                     type="submit"
                     className="security-password-submit"
-                    disabled={isSubmitting}
+                    disabled={
+                      isSubmitting
+                    }
                   >
                     {isSubmitting
                       ? 'Mise à jour...'
@@ -747,6 +1166,9 @@ function Security() {
                       onClick={
                         handleOpenDisable
                       }
+                      disabled={
+                        twoFactorLoading
+                      }
                     >
                       Désactiver
                     </button>
@@ -838,7 +1260,8 @@ function Security() {
                   </div>
 
 
-                  {twoFactorSetup.qrCodeDataUrl ? (
+                  {twoFactorSetup
+                    .qrCodeDataUrl ? (
                     <div
                       style={{
                         margin:
@@ -847,7 +1270,8 @@ function Security() {
                     >
                       <img
                         src={
-                          twoFactorSetup.qrCodeDataUrl
+                          twoFactorSetup
+                            .qrCodeDataUrl
                         }
                         alt="QR code de configuration 2FA"
                         style={{
@@ -860,13 +1284,15 @@ function Security() {
                   ) : null}
 
 
-                  {twoFactorSetup.manualKey ? (
+                  {twoFactorSetup
+                    .manualKey ? (
                     <div
                       style={{
                         marginBottom:
                           '24px',
                       }}
                     >
+
                       <strong>
                         Clé manuelle
                       </strong>
@@ -878,9 +1304,11 @@ function Security() {
                         }}
                       >
                         {
-                          twoFactorSetup.manualKey
+                          twoFactorSetup
+                            .manualKey
                         }
                       </p>
+
                     </div>
                   ) : null}
 
@@ -1103,7 +1531,7 @@ function Security() {
 
 
             {/* =====================
-                DEVICES
+                CONNECTED DEVICES
             ===================== */}
 
             <section className="security-card security-row-card">
@@ -1118,35 +1546,318 @@ function Security() {
               </div>
 
 
-              <div className="security-row-content">
+              <div
+                className="security-row-content"
+                style={{
+                  width: '100%',
+                }}
+              >
 
-                <div>
+                <div
+                  style={{
+                    width: '100%',
+                  }}
+                >
 
                   <h2>
                     Appareils connectés
                   </h2>
 
+                  <p>
+                    Consultez les appareils
+                    actuellement connectés à
+                    votre compte.
+                  </p>
 
-                  <div className="security-current-device">
 
-                    <div>
+                  {sessionsLoading ? (
+                    <p
+                      style={{
+                        marginTop:
+                          '18px',
+                      }}
+                    >
+                      Chargement des appareils...
+                    </p>
+                  ) : null}
 
-                      <strong>
-                        Cet appareil
-                      </strong>
 
-                      <span>
-                        Navigateur web
+                  {!sessionsLoading &&
+                  currentSession ? (
+                    <div
+                      className="security-current-device"
+                      style={{
+                        marginTop:
+                          '18px',
+                      }}
+                    >
+
+                      <div
+                        style={{
+                          display:
+                            'flex',
+                          alignItems:
+                            'center',
+                          gap: '12px',
+                        }}
+                      >
+
+                        <DeviceIcon
+                          userAgent={
+                            currentSession
+                              .userAgent
+                          }
+                        />
+
+                        <div>
+
+                          <strong>
+                            Cet appareil
+                          </strong>
+
+                          <span
+                            style={{
+                              display:
+                                'block',
+                            }}
+                          >
+                            {
+                              getSessionDescription(
+                                currentSession,
+                              )
+                            }
+                          </span>
+
+                          <span
+                            style={{
+                              display:
+                                'block',
+                              marginTop:
+                                '3px',
+                              fontSize:
+                                '13px',
+                              opacity:
+                                0.7,
+                            }}
+                          >
+                            Dernière activité :{' '}
+                            {formatDate(
+                              currentSession
+                                .lastSeenAt,
+                            )}
+                          </span>
+
+                          {currentSession
+                            .ipAddress ? (
+                            <span
+                              style={{
+                                display:
+                                  'block',
+                                marginTop:
+                                  '3px',
+                                fontSize:
+                                  '13px',
+                                opacity:
+                                  0.7,
+                              }}
+                            >
+                              IP :{' '}
+                              {
+                                currentSession
+                                  .ipAddress
+                              }
+                            </span>
+                          ) : null}
+
+                        </div>
+
+                      </div>
+
+
+                      <span className="security-current-session">
+                        Session actuelle
                       </span>
 
                     </div>
+                  ) : null}
 
 
-                    <span className="security-current-session">
-                      Session actuelle
-                    </span>
+                  {!sessionsLoading &&
+                  !currentSession &&
+                  !sessionsError ? (
+                    <p
+                      style={{
+                        marginTop:
+                          '18px',
+                      }}
+                    >
+                      Aucune session actuelle
+                      n’a été trouvée.
+                    </p>
+                  ) : null}
 
-                  </div>
+
+                  {!sessionsLoading &&
+                  otherSessions.length >
+                    0 ? (
+                    <div
+                      style={{
+                        marginTop:
+                          '20px',
+                        display:
+                          'grid',
+                        gap: '12px',
+                      }}
+                    >
+
+                      {otherSessions.map(
+                        (session) => (
+                          <div
+                            key={
+                              session.sessionId
+                            }
+                            className="security-current-device"
+                          >
+
+                            <div
+                              style={{
+                                display:
+                                  'flex',
+                                alignItems:
+                                  'center',
+                                gap:
+                                  '12px',
+                              }}
+                            >
+
+                              <DeviceIcon
+                                userAgent={
+                                  session
+                                    .userAgent
+                                }
+                              />
+
+                              <div>
+
+                                <strong>
+                                  {
+                                    getBrowserName(
+                                      session
+                                        .userAgent,
+                                    )
+                                  }
+                                </strong>
+
+                                <span
+                                  style={{
+                                    display:
+                                      'block',
+                                  }}
+                                >
+                                  {
+                                    getOperatingSystem(
+                                      session
+                                        .userAgent,
+                                    )
+                                  }
+                                </span>
+
+                                <span
+                                  style={{
+                                    display:
+                                      'block',
+                                    marginTop:
+                                      '3px',
+                                    fontSize:
+                                      '13px',
+                                    opacity:
+                                      0.7,
+                                  }}
+                                >
+                                  Dernière activité :{' '}
+                                  {formatDate(
+                                    session
+                                      .lastSeenAt,
+                                  )}
+                                </span>
+
+                                {session
+                                  .ipAddress ? (
+                                  <span
+                                    style={{
+                                      display:
+                                        'block',
+                                      marginTop:
+                                        '3px',
+                                      fontSize:
+                                        '13px',
+                                      opacity:
+                                        0.7,
+                                    }}
+                                  >
+                                    IP :{' '}
+                                    {
+                                      session
+                                        .ipAddress
+                                    }
+                                  </span>
+                                ) : null}
+
+                              </div>
+
+                            </div>
+
+
+                            <button
+                              type="button"
+                              className="security-outline-button"
+                              onClick={() =>
+                                handleDisconnectSession(
+                                  session
+                                    .sessionId,
+                                )
+                              }
+                              disabled={
+                                disconnectingSessionId ===
+                                  session
+                                    .sessionId ||
+                                disconnectingOthers
+                              }
+                            >
+                              {disconnectingSessionId ===
+                              session
+                                .sessionId
+                                ? 'Déconnexion...'
+                                : 'Déconnecter'}
+                            </button>
+
+                          </div>
+                        ),
+                      )}
+
+                    </div>
+                  ) : null}
+
+
+                  {!sessionsLoading &&
+                  otherSessions.length ===
+                    0 &&
+                  currentSession ? (
+                    <p
+                      style={{
+                        marginTop:
+                          '16px',
+                        fontSize:
+                          '14px',
+                        opacity:
+                          0.75,
+                      }}
+                    >
+                      Aucun autre appareil
+                      n’est actuellement
+                      connecté.
+                    </p>
+                  ) : null}
 
                 </div>
 
@@ -1154,15 +1865,77 @@ function Security() {
                 <button
                   type="button"
                   className="security-outline-button security-disconnect-button"
-                  disabled
-                  title="La gestion des sessions sera connectée au backend à l’étape suivante."
+                  onClick={
+                    handleDisconnectOthers
+                  }
+                  disabled={
+                    sessionsLoading ||
+                    disconnectingOthers ||
+                    otherSessions.length ===
+                      0
+                  }
+                  title={
+                    otherSessions.length ===
+                    0
+                      ? 'Aucun autre appareil connecté.'
+                      : 'Déconnecter toutes les autres sessions.'
+                  }
                 >
-                  Déconnecter les autres appareils
+                  {disconnectingOthers
+                    ? 'Déconnexion...'
+                    : 'Déconnecter les autres appareils'}
                 </button>
 
               </div>
 
             </section>
+
+
+            {/* =====================
+                SESSION MESSAGES
+            ===================== */}
+
+            {sessionsSuccess ? (
+              <p
+                className="account-pending-message success"
+                role="status"
+              >
+                {sessionsSuccess}
+              </p>
+            ) : null}
+
+
+            {sessionsError ? (
+              <div>
+
+                <p
+                  className="account-pending-message error"
+                  role="alert"
+                >
+                  {sessionsError}
+                </p>
+
+                <button
+                  type="button"
+                  className="security-outline-button"
+                  onClick={
+                    loadSessions
+                  }
+                  disabled={
+                    sessionsLoading
+                  }
+                  style={{
+                    marginTop:
+                      '10px',
+                  }}
+                >
+                  {sessionsLoading
+                    ? 'Chargement...'
+                    : 'Réessayer'}
+                </button>
+
+              </div>
+            ) : null}
 
           </div>
 

@@ -13,7 +13,6 @@ const {
 
 
 const RESET_TOKEN_TTL_MINUTES = 60
-
 const TWO_FACTOR_CHALLENGE_TTL_MINUTES = 10
 
 const FORGOT_PASSWORD_RESPONSE =
@@ -116,7 +115,14 @@ function toSafeUser(row) {
 }
 
 
-function signToken(user) {
+/* =========================
+   JWT + SESSION HELPERS
+========================= */
+
+function signToken(
+  user,
+  sessionId,
+) {
   if (!env.jwt.secret) {
     throw Object.assign(
       new Error(
@@ -132,14 +138,131 @@ function signToken(user) {
     {
       email: user.email,
       role: user.role,
+      sid: sessionId,
     },
     env.jwt.secret,
     {
-      subject: String(user.id),
+      subject:
+        String(user.id),
+
       expiresIn:
         env.jwt.expiresIn,
     },
   )
+}
+
+
+function getRequestIp(req) {
+  const forwardedFor =
+    req.headers['x-forwarded-for']
+
+  if (forwardedFor) {
+    return String(forwardedFor)
+      .split(',')[0]
+      .trim()
+      .slice(0, 45)
+  }
+
+  const ip =
+    req.ip ||
+    req.socket?.remoteAddress ||
+    ''
+
+  return (
+    String(ip)
+      .trim()
+      .slice(0, 45) ||
+    null
+  )
+}
+
+
+function getRequestUserAgent(req) {
+  const userAgent =
+    String(
+      req.headers['user-agent'] ||
+        '',
+    ).trim()
+
+  if (!userAgent) {
+    return null
+  }
+
+  return userAgent.slice(
+    0,
+    500,
+  )
+}
+
+
+async function createUserSession(
+  user,
+  req,
+  executor = pool,
+) {
+  const sessionId =
+    crypto.randomUUID()
+
+  const token =
+    signToken(
+      user,
+      sessionId,
+    )
+
+  const decodedToken =
+    jwt.decode(token)
+
+  if (
+    !decodedToken ||
+    !decodedToken.exp
+  ) {
+    throw Object.assign(
+      new Error(
+        'Impossible de déterminer l’expiration de la session.',
+      ),
+      {
+        statusCode: 500,
+      },
+    )
+  }
+
+  const expiresAt =
+    new Date(
+      decodedToken.exp * 1000,
+    )
+
+  await executor.execute(
+    `
+      INSERT INTO user_sessions (
+        user_id,
+        session_id,
+        user_agent,
+        ip_address,
+        last_seen_at,
+        expires_at
+      )
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        NOW(),
+        ?
+      )
+    `,
+    [
+      user.id,
+      sessionId,
+      getRequestUserAgent(req),
+      getRequestIp(req),
+      expiresAt,
+    ],
+  )
+
+  return {
+    token,
+    sessionId,
+  }
 }
 
 
@@ -169,7 +292,8 @@ function verifyTotpCode(
   return speakeasy.totp.verify({
     secret,
     encoding: 'base32',
-    token: String(code).trim(),
+    token:
+      String(code).trim(),
     window: 1,
   })
 }
@@ -223,9 +347,10 @@ async function register(
       email,
       phone,
       password,
-    } = getRegistrationPayload(
-      req.body,
-    )
+    } =
+      getRegistrationPayload(
+        req.body,
+      )
 
     const [existingUsers] =
       await pool.execute(
@@ -241,10 +366,12 @@ async function register(
     if (
       existingUsers.length > 0
     ) {
-      return res.status(409).json({
-        message:
-          'Un compte utilise déjà cette adresse e-mail.',
-      })
+      return res
+        .status(409)
+        .json({
+          message:
+            'Un compte utilise déjà cette adresse e-mail.',
+        })
     }
 
     const passwordHash =
@@ -289,13 +416,20 @@ async function register(
         result.insertId,
       )
 
-    const token =
-      signToken(user)
-
-    return res.status(201).json({
-      user,
+    const {
       token,
-    })
+    } =
+      await createUserSession(
+        user,
+        req,
+      )
+
+    return res
+      .status(201)
+      .json({
+        user,
+        token,
+      })
   } catch (error) {
     next(error)
   }
@@ -319,7 +453,8 @@ async function login(
 
     const password =
       String(
-        req.body.password || '',
+        req.body.password ||
+          '',
       )
 
     const [rows] =
@@ -364,19 +499,24 @@ async function login(
       !userRow ||
       !passwordMatches
     ) {
-      return res.status(401).json({
-        message:
-          'Adresse e-mail ou mot de passe incorrect.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Adresse e-mail ou mot de passe incorrect.',
+        })
     }
 
-    if (!userRow.is_active) {
-      return res.status(403).json({
-        message:
-          'Ce compte est désactivé.',
-      })
+    if (
+      !userRow.is_active
+    ) {
+      return res
+        .status(403)
+        .json({
+          message:
+            'Ce compte est désactivé.',
+        })
     }
-
 
     if (
       userRow.two_factor_enabled &&
@@ -424,22 +564,31 @@ async function login(
       )
 
       return res.json({
-        requiresTwoFactor: true,
+        requiresTwoFactor:
+          true,
+
         challengeToken,
+
         message:
           'Veuillez saisir le code de votre application d’authentification.',
       })
     }
 
-
     const user =
       toSafeUser(userRow)
 
-    const token =
-      signToken(user)
+    const {
+      token,
+    } =
+      await createUserSession(
+        user,
+        req,
+      )
 
     return res.json({
-      requiresTwoFactor: false,
+      requiresTwoFactor:
+        false,
+
       user,
       token,
     })
@@ -464,22 +613,27 @@ async function verifyLoginTwoFactor(
   try {
     const challengeToken =
       String(
-        req.body.challengeToken || '',
+        req.body
+          .challengeToken ||
+          '',
       ).trim()
 
     const code =
       String(
-        req.body.code || '',
+        req.body.code ||
+          '',
       ).trim()
 
     if (
       !challengeToken ||
       !code
     ) {
-      return res.status(400).json({
-        message:
-          'Le challenge et le code 2FA sont requis.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le challenge et le code 2FA sont requis.',
+        })
     }
 
     const challengeHash =
@@ -487,7 +641,8 @@ async function verifyLoginTwoFactor(
         challengeToken,
       )
 
-    await connection.beginTransaction()
+    await connection
+      .beginTransaction()
 
     const [rows] =
       await connection.execute(
@@ -534,12 +689,15 @@ async function verifyLoginTwoFactor(
       !row.two_factor_enabled ||
       !row.two_factor_secret
     ) {
-      await connection.rollback()
+      await connection
+        .rollback()
 
-      return res.status(401).json({
-        message:
-          'Le challenge 2FA est invalide ou expiré.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Le challenge 2FA est invalide ou expiré.',
+        })
     }
 
     const validCode =
@@ -549,12 +707,15 @@ async function verifyLoginTwoFactor(
       )
 
     if (!validCode) {
-      await connection.rollback()
+      await connection
+        .rollback()
 
-      return res.status(401).json({
-        message:
-          'Le code de vérification est incorrect.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Le code de vérification est incorrect.',
+        })
     }
 
     await connection.execute(
@@ -566,20 +727,32 @@ async function verifyLoginTwoFactor(
       [row.challenge_id],
     )
 
-    await connection.commit()
-
     const user =
       toSafeUser(row)
 
-    const token =
-      signToken(user)
+    const {
+      token,
+    } =
+      await createUserSession(
+        user,
+        req,
+        connection,
+      )
+
+    await connection
+      .commit()
 
     return res.json({
       user,
       token,
     })
   } catch (error) {
-    await connection.rollback()
+    try {
+      await connection
+        .rollback()
+    } catch {
+      // La transaction peut déjà être terminée.
+    }
 
     next(error)
   } finally {
@@ -607,10 +780,12 @@ async function getMe(
       !user ||
       !user.isActive
     ) {
-      return res.status(401).json({
-        message:
-          'Session invalide.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Session invalide.',
+        })
     }
 
     return res.json({
@@ -654,27 +829,35 @@ async function setupTwoFactor(
       rows[0]
 
     if (!user) {
-      return res.status(401).json({
-        message:
-          'Session invalide.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Session invalide.',
+        })
     }
 
     if (
       user.two_factor_enabled
     ) {
-      return res.status(409).json({
-        message:
-          'La vérification en deux étapes est déjà activée.',
-      })
+      return res
+        .status(409)
+        .json({
+          message:
+            'La vérification en deux étapes est déjà activée.',
+        })
     }
 
     const secret =
       speakeasy.generateSecret({
         name:
           `NOVA (${user.email})`,
-        issuer: 'NOVA',
-        length: 32,
+
+        issuer:
+          'NOVA',
+
+        length:
+          32,
       })
 
     await pool.execute(
@@ -696,8 +879,10 @@ async function setupTwoFactor(
 
     return res.json({
       qrCodeDataUrl,
+
       manualKey:
         secret.base32,
+
       message:
         'Scannez le QR code puis confirmez avec un code à 6 chiffres.',
     })
@@ -722,14 +907,17 @@ async function enableTwoFactor(
 
     const code =
       String(
-        req.body.code || '',
+        req.body.code ||
+          '',
       ).trim()
 
     if (!code) {
-      return res.status(400).json({
-        message:
-          'Le code de vérification est requis.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le code de vérification est requis.',
+        })
     }
 
     const [rows] =
@@ -754,28 +942,34 @@ async function enableTwoFactor(
       !user ||
       !user.is_active
     ) {
-      return res.status(401).json({
-        message:
-          'Session invalide.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Session invalide.',
+        })
     }
 
     if (
       user.two_factor_enabled
     ) {
-      return res.status(409).json({
-        message:
-          'La vérification en deux étapes est déjà activée.',
-      })
+      return res
+        .status(409)
+        .json({
+          message:
+            'La vérification en deux étapes est déjà activée.',
+        })
     }
 
     if (
       !user.two_factor_secret
     ) {
-      return res.status(400).json({
-        message:
-          'Commencez d’abord la configuration 2FA.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Commencez d’abord la configuration 2FA.',
+        })
     }
 
     const validCode =
@@ -785,10 +979,12 @@ async function enableTwoFactor(
       )
 
     if (!validCode) {
-      return res.status(400).json({
-        message:
-          'Le code de vérification est incorrect.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le code de vérification est incorrect.',
+        })
     }
 
     await pool.execute(
@@ -803,7 +999,9 @@ async function enableTwoFactor(
     return res.json({
       message:
         'La vérification en deux étapes a été activée avec succès.',
-      twoFactorEnabled: true,
+
+      twoFactorEnabled:
+        true,
     })
   } catch (error) {
     next(error)
@@ -826,22 +1024,27 @@ async function disableTwoFactor(
 
     const currentPassword =
       String(
-        req.body.currentPassword || '',
+        req.body
+          .currentPassword ||
+          '',
       )
 
     const code =
       String(
-        req.body.code || '',
+        req.body.code ||
+          '',
       ).trim()
 
     if (
       !currentPassword ||
       !code
     ) {
-      return res.status(400).json({
-        message:
-          'Le mot de passe actuel et le code 2FA sont requis.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le mot de passe actuel et le code 2FA sont requis.',
+        })
     }
 
     const [rows] =
@@ -867,20 +1070,24 @@ async function disableTwoFactor(
       !user ||
       !user.is_active
     ) {
-      return res.status(401).json({
-        message:
-          'Session invalide.',
-      })
+      return res
+        .status(401)
+        .json({
+          message:
+            'Session invalide.',
+        })
     }
 
     if (
       !user.two_factor_enabled ||
       !user.two_factor_secret
     ) {
-      return res.status(400).json({
-        message:
-          'La vérification en deux étapes n’est pas activée.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'La vérification en deux étapes n’est pas activée.',
+        })
     }
 
     const passwordMatches =
@@ -889,11 +1096,15 @@ async function disableTwoFactor(
         user.password_hash,
       )
 
-    if (!passwordMatches) {
-      return res.status(400).json({
-        message:
-          'Le mot de passe actuel est incorrect.',
-      })
+    if (
+      !passwordMatches
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le mot de passe actuel est incorrect.',
+        })
     }
 
     const validCode =
@@ -903,10 +1114,12 @@ async function disableTwoFactor(
       )
 
     if (!validCode) {
-      return res.status(400).json({
-        message:
-          'Le code de vérification est incorrect.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le code de vérification est incorrect.',
+        })
     }
 
     await pool.execute(
@@ -933,7 +1146,9 @@ async function disableTwoFactor(
     return res.json({
       message:
         'La vérification en deux étapes a été désactivée.',
-      twoFactorEnabled: false,
+
+      twoFactorEnabled:
+        false,
     })
   } catch (error) {
     next(error)
@@ -1028,8 +1243,12 @@ async function forgotPassword(
       )
 
       await sendPasswordResetEmail({
-        to: user.email,
-        name: user.first_name,
+        to:
+          user.email,
+
+        name:
+          user.first_name,
+
         resetUrl,
       })
     }
@@ -1062,13 +1281,36 @@ async function resetPassword(
         req.body.token ||
           req.params.token ||
           '',
-      )
+      ).trim()
 
     const password =
       String(
         req.body.password ||
           '',
       )
+
+    if (
+      !token ||
+      !password
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le lien de réinitialisation et le nouveau mot de passe sont requis.',
+        })
+    }
+
+    if (
+      password.length < 8
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+        })
+    }
 
     const tokenHash =
       crypto
@@ -1108,12 +1350,15 @@ async function resetPassword(
       rows[0]
 
     if (!resetToken) {
-      await connection.rollback()
+      await connection
+        .rollback()
 
-      return res.status(400).json({
-        message:
-          'Le lien de réinitialisation est invalide ou expiré.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le lien de réinitialisation est invalide ou expiré.',
+        })
     }
 
     const sameAsCurrentPassword =
@@ -1122,13 +1367,18 @@ async function resetPassword(
         resetToken.password_hash,
       )
 
-    if (sameAsCurrentPassword) {
-      await connection.rollback()
+    if (
+      sameAsCurrentPassword
+    ) {
+      await connection
+        .rollback()
 
-      return res.status(400).json({
-        message:
-          'Le nouveau mot de passe doit être différent de l’ancien mot de passe.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le nouveau mot de passe doit être différent de l’ancien mot de passe.',
+        })
     }
 
     const passwordHash =
@@ -1137,6 +1387,9 @@ async function resetPassword(
         12,
       )
 
+    /*
+     * 1. Modifier le mot de passe.
+     */
     await connection.execute(
       `
         UPDATE users
@@ -1149,6 +1402,11 @@ async function resetPassword(
       ],
     )
 
+    /*
+     * 2. Invalider tous les liens
+     *    de réinitialisation encore
+     *    actifs pour cet utilisateur.
+     */
     await connection.execute(
       `
         UPDATE password_reset_tokens
@@ -1161,21 +1419,64 @@ async function resetPassword(
       ],
     )
 
-    await connection.commit()
+    /*
+     * 3. Déconnecter TOUS les appareils.
+     *
+     * Un reset de mot de passe est une
+     * opération sensible. Contrairement
+     * au changement de mot de passe
+     * depuis le compte, aucune session
+     * existante ne doit rester active.
+     */
+    await connection.execute(
+      `
+        UPDATE user_sessions
+        SET revoked_at = NOW()
+        WHERE user_id = ?
+          AND revoked_at IS NULL
+      `,
+      [
+        resetToken.user_id,
+      ],
+    )
+
+    /*
+     * 4. Invalider également les
+     *    challenges 2FA de connexion
+     *    encore ouverts.
+     */
+    await connection.execute(
+      `
+        UPDATE two_factor_challenges
+        SET used_at = NOW()
+        WHERE user_id = ?
+          AND used_at IS NULL
+      `,
+      [
+        resetToken.user_id,
+      ],
+    )
+
+    await connection
+      .commit()
 
     return res.json({
       message:
-        'Votre mot de passe a été réinitialisé.',
+        'Votre mot de passe a été réinitialisé. Tous les appareils ont été déconnectés.',
     })
   } catch (error) {
-    await connection.rollback()
+    try {
+      await connection
+        .rollback()
+    } catch {
+      // La transaction peut déjà être terminée.
+    }
 
     next(error)
   } finally {
     connection.release()
   }
 }
-
 
 /* =========================
    CHANGE PASSWORD
@@ -1186,51 +1487,69 @@ async function changePassword(
   res,
   next,
 ) {
+  const connection =
+    await pool.getConnection()
+
   try {
     const userId =
       req.user.id
 
+    const currentSessionId =
+      req.user.sessionId
+
     const currentPassword =
       String(
-        req.body.currentPassword || '',
+        req.body
+          .currentPassword ||
+          '',
       )
 
     const newPassword =
       String(
-        req.body.newPassword || '',
+        req.body.newPassword ||
+          '',
       )
 
     if (
       !currentPassword ||
       !newPassword
     ) {
-      return res.status(400).json({
-        message:
-          'Le mot de passe actuel et le nouveau mot de passe sont requis.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le mot de passe actuel et le nouveau mot de passe sont requis.',
+        })
     }
 
     if (
       newPassword.length < 8
     ) {
-      return res.status(400).json({
-        message:
-          'Le nouveau mot de passe doit contenir au moins 8 caractères.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+        })
     }
 
     if (
       currentPassword ===
       newPassword
     ) {
-      return res.status(400).json({
-        message:
-          'Le nouveau mot de passe doit être différent du mot de passe actuel.',
-      })
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le nouveau mot de passe doit être différent du mot de passe actuel.',
+        })
     }
 
+    await connection
+      .beginTransaction()
+
     const [rows] =
-      await pool.execute(
+      await connection.execute(
         `
           SELECT
             id,
@@ -1239,6 +1558,7 @@ async function changePassword(
           FROM users
           WHERE id = ?
           LIMIT 1
+          FOR UPDATE
         `,
         [userId],
       )
@@ -1250,10 +1570,15 @@ async function changePassword(
       !user ||
       !user.is_active
     ) {
-      return res.status(401).json({
-        message:
-          'Session invalide.',
-      })
+      await connection
+        .rollback()
+
+      return res
+        .status(401)
+        .json({
+          message:
+            'Session invalide.',
+        })
     }
 
     const passwordMatches =
@@ -1262,11 +1587,38 @@ async function changePassword(
         user.password_hash,
       )
 
-    if (!passwordMatches) {
-      return res.status(400).json({
-        message:
-          'Le mot de passe actuel est incorrect.',
-      })
+    if (
+      !passwordMatches
+    ) {
+      await connection
+        .rollback()
+
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le mot de passe actuel est incorrect.',
+        })
+    }
+
+    const sameAsCurrentPassword =
+      await bcrypt.compare(
+        newPassword,
+        user.password_hash,
+      )
+
+    if (
+      sameAsCurrentPassword
+    ) {
+      await connection
+        .rollback()
+
+      return res
+        .status(400)
+        .json({
+          message:
+            'Le nouveau mot de passe doit être différent du mot de passe actuel.',
+        })
     }
 
     const newPasswordHash =
@@ -1275,7 +1627,7 @@ async function changePassword(
         12,
       )
 
-    await pool.execute(
+    await connection.execute(
       `
         UPDATE users
         SET password_hash = ?
@@ -1287,9 +1639,291 @@ async function changePassword(
       ],
     )
 
+    /*
+     * Après un changement de mot
+     * de passe, toutes les autres
+     * sessions sont révoquées.
+     *
+     * La session actuelle reste
+     * active afin que l'utilisateur
+     * ne soit pas déconnecté de
+     * l'appareil utilisé pour
+     * changer le mot de passe.
+     */
+    await connection.execute(
+      `
+        UPDATE user_sessions
+        SET revoked_at = NOW()
+        WHERE user_id = ?
+          AND session_id <> ?
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+      `,
+      [
+        userId,
+        currentSessionId,
+      ],
+    )
+
+    await connection
+      .commit()
+
     return res.json({
       message:
-        'Votre mot de passe a été modifié avec succès.',
+        'Votre mot de passe a été modifié avec succès. Les autres appareils ont été déconnectés.',
+    })
+  } catch (error) {
+    try {
+      await connection
+        .rollback()
+    } catch {
+      // La transaction peut déjà être terminée.
+    }
+
+    next(error)
+  } finally {
+    connection.release()
+  }
+}
+
+/* =========================
+   GET USER SESSIONS
+========================= */
+
+async function getSessions(
+  req,
+  res,
+  next,
+) {
+  try {
+    const userId =
+      req.user.id
+
+    const currentSessionId =
+      req.user.sessionId
+
+    const [rows] =
+      await pool.execute(
+        `
+          SELECT
+            id,
+            session_id,
+            user_agent,
+            ip_address,
+            created_at,
+            last_seen_at,
+            expires_at,
+            revoked_at
+          FROM user_sessions
+          WHERE user_id = ?
+            AND revoked_at IS NULL
+            AND expires_at > NOW()
+          ORDER BY
+            last_seen_at DESC,
+            created_at DESC
+        `,
+        [userId],
+      )
+
+    const sessions =
+      rows.map(
+        (session) => ({
+          id:
+            session.id,
+
+          sessionId:
+            session.session_id,
+
+          userAgent:
+            session.user_agent,
+
+          ipAddress:
+            session.ip_address,
+
+          createdAt:
+            session.created_at,
+
+          lastSeenAt:
+            session.last_seen_at,
+
+          expiresAt:
+            session.expires_at,
+
+          isCurrent:
+            session.session_id ===
+            currentSessionId,
+        }),
+      )
+
+    return res.json({
+      sessions,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+/* =========================
+   REVOKE OTHER SESSIONS
+========================= */
+
+async function revokeOtherSessions(
+  req,
+  res,
+  next,
+) {
+  try {
+    const userId =
+      req.user.id
+
+    const currentSessionId =
+      req.user.sessionId
+
+    const [result] =
+      await pool.execute(
+        `
+          UPDATE user_sessions
+          SET revoked_at = NOW()
+          WHERE user_id = ?
+            AND session_id <> ?
+            AND revoked_at IS NULL
+            AND expires_at > NOW()
+        `,
+        [
+          userId,
+          currentSessionId,
+        ],
+      )
+
+    return res.json({
+      message:
+        'Les autres appareils ont été déconnectés avec succès.',
+
+      revokedCount:
+        result.affectedRows,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+/* =========================
+   REVOKE ONE SESSION
+========================= */
+
+async function revokeSession(
+  req,
+  res,
+  next,
+) {
+  try {
+    const userId =
+      req.user.id
+
+    const currentSessionId =
+      req.user.sessionId
+
+    const sessionId =
+      String(
+        req.params
+          .sessionId ||
+          '',
+      ).trim()
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            'La session est requise.',
+        })
+    }
+
+    if (
+      sessionId ===
+      currentSessionId
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            'Vous ne pouvez pas déconnecter la session actuelle avec cette action.',
+        })
+    }
+
+    const [result] =
+      await pool.execute(
+        `
+          UPDATE user_sessions
+          SET revoked_at = NOW()
+          WHERE user_id = ?
+            AND session_id = ?
+            AND revoked_at IS NULL
+            AND expires_at > NOW()
+        `,
+        [
+          userId,
+          sessionId,
+        ],
+      )
+
+    if (
+      result.affectedRows ===
+      0
+    ) {
+      return res
+        .status(404)
+        .json({
+          message:
+            'Cette session est introuvable ou déjà déconnectée.',
+        })
+    }
+
+    return res.json({
+      message:
+        'L’appareil a été déconnecté avec succès.',
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+/* =========================
+   LOGOUT CURRENT SESSION
+========================= */
+
+async function logout(
+  req,
+  res,
+  next,
+) {
+  try {
+    const userId =
+      req.user.id
+
+    const currentSessionId =
+      req.user.sessionId
+
+    await pool.execute(
+      `
+        UPDATE user_sessions
+        SET revoked_at = NOW()
+        WHERE user_id = ?
+          AND session_id = ?
+          AND revoked_at IS NULL
+      `,
+      [
+        userId,
+        currentSessionId,
+      ],
+    )
+
+    return res.json({
+      message:
+        'Vous avez été déconnecté avec succès.',
     })
   } catch (error) {
     next(error)
@@ -1312,4 +1946,9 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+
+  getSessions,
+  revokeOtherSessions,
+  revokeSession,
+  logout,
 }

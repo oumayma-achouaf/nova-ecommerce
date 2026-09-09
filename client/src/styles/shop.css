@@ -7503,3 +7503,375 @@ canvas {
     width: 100%;
   }
 }
+
+/* =========================================================
+   NOVA - SECURITY STANDALONE FORM CARDS FIX
+   A security-card normally reserves a 70px icon column.
+   Setup/disable cards start directly with security-card-body,
+   so the body must span the complete card grid.
+========================================================= */
+.security-content > .security-card > .security-card-body:first-child {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+.security-content > .security-card > .security-card-body:first-child .security-password-form {
+  width: min(620px, 100%);
+  max-width: 620px;
+}
+
+.security-content > .security-card > .security-card-body:first-child .security-password-input {
+  width: 100%;
+}
+
+.security-content > .security-card > .security-card-body:first-child img[alt="QR code de configuration 2FA"] {
+  display: block;
+  width: 190px !important;
+  height: 190px !important;
+  min-width: 190px;
+  max-width: 190px !important;
+}
+
+@media (max-width: 600px) {
+  .security-content > .security-card > .security-card-body:first-child img[alt="QR code de configuration 2FA"] {
+    width: 170px !important;
+    height: 170px !important;
+    min-width: 170px;
+    max-width: 170px !important;
+  }
+}
+
+
+/* =========================================================
+   NOVA FOOTER
+========================================================= */
+
+.nova-footer {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin-top: auto;
+  background: #f5f1e8;
+  color: #1a1a1a;
+  border-top: 1px solid #ddd5c5;
+}
+
+/* MAIN */
+
+.nova-footer-main {
+  width: 100%;
+  padding: 70px 24px 55px;
+}
+
+.nova-footer-container {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 1.4fr)
+    repeat(3, minmax(150px, 1fr));
+
+  gap: 60px;
+}
+
+/* BRAND */
+
+.nova-footer-brand {
+  max-width: 320px;
+}
+
+.nova-footer-logo {
+  display: inline-block;
+  margin-bottom: 22px;
+
+  color: #111;
+  text-decoration: none;
+
+  font-family:
+    "Bodoni Moda",
+    "Times New Roman",
+    serif;
+
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.14em;
+
+  transition: opacity 0.2s ease;
+}
+
+.nova-footer-logo:hover {
+  opacity: 0.7;
+}
+
+.nova-footer-description {
+  max-width: 290px;
+  margin: 0;
+
+  color: #666158;
+
+  font-family:
+    "Inter",
+    Arial,
+    sans-serif;
+
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.8;
+}
+
+.nova-footer-signature {
+  margin: 22px 0 0;
+
+  color: #747456;
+
+  font-family:
+    "Cormorant Garamond",
+    "Times New Roman",
+    serif;
+
+  font-size: 20px;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* COLUMNS */
+
+.nova-footer-column {
+  min-width: 0;
+}
+
+.nova-footer-column h3 {
+  margin: 0 0 24px;
+
+  color: #171717;
+
+  font-family:
+    "Inter",
+    Arial,
+    sans-serif;
+
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+/* LINKS */
+
+.nova-footer-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.nova-footer-links a {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  color: #625f58;
+  text-decoration: none;
+
+  font-family:
+    "Inter",
+    Arial,
+    sans-serif;
+
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.nova-footer-links a:hover {
+  color: #747456;
+  transform: translateX(3px);
+}
+
+.nova-footer-links a.active {
+  color: #747456;
+  font-weight: 600;
+}
+
+.nova-footer-links a.active::after {
+  content: "";
+
+  position: absolute;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+
+  height: 1px;
+
+  background: #747456;
+}
+
+.nova-footer-links svg {
+  flex-shrink: 0;
+  stroke-width: 1.5;
+}
+
+/* BOTTOM */
+
+.nova-footer-bottom {
+  width: 100%;
+  border-top: 1px solid #ddd5c5;
+  background: #eee8dc;
+}
+
+.nova-footer-bottom-inner {
+  width: min(1280px, 100%);
+  min-height: 72px;
+
+  margin: 0 auto;
+  padding: 18px 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.nova-footer-copyright {
+  margin: 0;
+
+  color: #6b675f;
+
+  font-family:
+    "Inter",
+    Arial,
+    sans-serif;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.nova-footer-copyright strong {
+  color: #222;
+  font-weight: 600;
+}
+
+/* BACK TO TOP */
+
+.nova-footer-top {
+  flex-shrink: 0;
+
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  color: #4d4d3d;
+
+  font-family:
+    "Inter",
+    Arial,
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.nova-footer-top:hover {
+  color: #111;
+  transform: translateY(-2px);
+}
+
+.nova-footer-top:focus-visible {
+  outline: 2px solid #747456;
+  outline-offset: 5px;
+}
+
+/* TABLET */
+
+@media (max-width: 1000px) {
+  .nova-footer-main {
+    padding: 55px 24px 45px;
+  }
+
+  .nova-footer-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 45px 60px;
+  }
+
+  .nova-footer-brand {
+    max-width: 360px;
+  }
+}
+
+/* MOBILE */
+
+@media (max-width: 640px) {
+  .nova-footer-main {
+    padding: 45px 20px 38px;
+  }
+
+  .nova-footer-container {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+
+  .nova-footer-brand {
+    max-width: 100%;
+  }
+
+  .nova-footer-logo {
+    font-size: 30px;
+  }
+
+  .nova-footer-description {
+    max-width: 100%;
+  }
+
+  .nova-footer-column h3 {
+    margin-bottom: 18px;
+  }
+
+  .nova-footer-links {
+    gap: 13px;
+  }
+
+  .nova-footer-bottom-inner {
+    min-height: auto;
+    padding: 22px 20px;
+
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+}
+
+/* VERY SMALL MOBILE */
+
+@media (max-width: 380px) {
+  .nova-footer-main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .nova-footer-bottom-inner {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .nova-footer-logo {
+    font-size: 27px;
+  }
+}

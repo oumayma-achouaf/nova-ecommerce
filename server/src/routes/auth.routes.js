@@ -1,4 +1,5 @@
 const express = require('express')
+
 const {
   body,
   param,
@@ -313,6 +314,84 @@ router.put(
   handleValidation,
 
   authController.changePassword,
+)
+
+
+/* =========================
+   USER SESSIONS
+========================= */
+
+/*
+ * GET /api/auth/sessions
+ *
+ * Retourne toutes les sessions actives
+ * de l'utilisateur connecté.
+ */
+router.get(
+  '/sessions',
+
+  authenticate,
+
+  authController.getSessions,
+)
+
+
+/*
+ * DELETE /api/auth/sessions/others
+ *
+ * Déconnecte tous les autres appareils,
+ * sans toucher à la session actuelle.
+ *
+ * IMPORTANT:
+ * Cette route doit rester AVANT
+ * /sessions/:sessionId.
+ */
+router.delete(
+  '/sessions/others',
+
+  authenticate,
+
+  authController.revokeOtherSessions,
+)
+
+
+/*
+ * DELETE /api/auth/sessions/:sessionId
+ *
+ * Déconnecte un appareil précis.
+ */
+router.delete(
+  '/sessions/:sessionId',
+
+  authenticate,
+
+  [
+    param('sessionId')
+      .isUUID()
+      .withMessage(
+        'La session est invalide.',
+      ),
+  ],
+
+  handleValidation,
+
+  authController.revokeSession,
+)
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+/*
+ * Révoque la session actuelle côté serveur.
+ */
+router.post(
+  '/logout',
+
+  authenticate,
+
+  authController.logout,
 )
 
 

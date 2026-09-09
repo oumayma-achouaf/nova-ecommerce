@@ -1,6 +1,10 @@
 import api from './api'
 
 
+/* =========================
+   REGISTER
+========================= */
+
 export async function register(data) {
   const response = await api.post(
     '/auth/register',
@@ -10,6 +14,10 @@ export async function register(data) {
   return response.data
 }
 
+
+/* =========================
+   LOGIN
+========================= */
 
 export async function login(data) {
   const response = await api.post(
@@ -21,6 +29,10 @@ export async function login(data) {
 }
 
 
+/* =========================
+   CURRENT USER
+========================= */
+
 export async function getMe() {
   const response = await api.get(
     '/auth/me',
@@ -30,7 +42,13 @@ export async function getMe() {
 }
 
 
-export async function forgotPassword(email) {
+/* =========================
+   FORGOT PASSWORD
+========================= */
+
+export async function forgotPassword(
+  email,
+) {
   const response = await api.post(
     '/auth/forgot-password',
     {
@@ -41,6 +59,10 @@ export async function forgotPassword(email) {
   return response.data
 }
 
+
+/* =========================
+   RESET PASSWORD
+========================= */
 
 export async function resetPassword(
   token,
@@ -143,6 +165,68 @@ export async function verifyLoginTwoFactor(
       challengeToken,
       code,
     },
+  )
+
+  return response.data
+}
+
+
+/* =========================
+   GET CONNECTED DEVICES
+========================= */
+
+export async function getSessions() {
+  const response = await api.get(
+    '/auth/sessions',
+  )
+
+  return response.data
+}
+
+
+/* =========================
+   DISCONNECT OTHER DEVICES
+========================= */
+
+export async function revokeOtherSessions() {
+  const response = await api.delete(
+    '/auth/sessions/others',
+  )
+
+  return response.data
+}
+
+
+/* =========================
+   DISCONNECT ONE DEVICE
+========================= */
+
+export async function revokeSession(
+  sessionId,
+) {
+  if (!sessionId) {
+    throw new Error(
+      'Session ID is required.',
+    )
+  }
+
+  const response = await api.delete(
+    `/auth/sessions/${encodeURIComponent(
+      sessionId,
+    )}`,
+  )
+
+  return response.data
+}
+
+
+/* =========================
+   LOGOUT CURRENT SESSION
+========================= */
+
+export async function logout() {
+  const response = await api.post(
+    '/auth/logout',
   )
 
   return response.data
