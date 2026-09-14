@@ -193,6 +193,26 @@ function ProductDetails() {
   ========================================================= */
 
   const product = useMemo(() => {
+    if (!databaseProduct && localProduct) {
+      const fallbackStock = Number(localProduct.stock || 20)
+
+      return {
+        ...localProduct,
+        slug: localProduct.id,
+        databaseId: null,
+        fullDescription:
+          localProduct.fullDescription ||
+          localProduct.description ||
+          '',
+        stock: fallbackStock,
+        availability:
+          fallbackStock > 0 ? 'En stock' : 'Rupture de stock',
+        reference: `NOVA-${localProduct.id}`,
+        variants: [],
+        images: [],
+      }
+    }
+
     if (!databaseProduct) {
       return null
     }
@@ -383,10 +403,28 @@ function ProductDetails() {
     }
   }, [databaseProduct])
 
-  const similarProducts = useMemo(
-    () => databaseSimilarProducts,
-    [databaseSimilarProducts],
-  )
+  const similarProducts = useMemo(() => {
+    if (databaseSimilarProducts.length > 0) {
+      return databaseSimilarProducts
+    }
+
+    if (!product) {
+      return []
+    }
+
+    return products
+      .filter((item) => {
+        if (item.id === product.id || item.id === product.slug) {
+          return false
+        }
+
+        return (
+          item.department === product.department ||
+          item.group === product.group
+        )
+      })
+      .slice(0, 4)
+  }, [databaseSimilarProducts, product])
 
   /* =========================================================
      STATES
@@ -711,14 +749,14 @@ function ProductDetails() {
      PRODUCT NOT FOUND
   ========================================================= */
 
-  if (productError || !product) {
+  if (!product) {
     return (
       <main className="product-not-found nova-container">
         <h1>Produit introuvable</h1>
 
         <p>
-          Ce produit n'existe pas ou n'est plus
-          disponible.
+          {productError ||
+            "Ce produit n'existe pas ou n'est plus disponible."}
         </p>
 
         <Link
@@ -781,6 +819,14 @@ function ProductDetails() {
     if (currentStock <= 0) {
       setProductNotice(
         'Cette variante est actuellement en rupture de stock.',
+      )
+
+      return false
+    }
+
+    if (!product.databaseId) {
+      setProductNotice(
+        'Ajout au panier indisponible hors connexion API pour ce produit.',
       )
 
       return false
@@ -888,6 +934,24 @@ function ProductDetails() {
     setProductNotice(
       'Le guide des tailles nécessite encore le contenu détaillé des mesures.',
     )
+  }
+
+  const handleFavoriteToggle = async () => {
+    if (!product.databaseId) {
+      setProductNotice(
+        'Favoris indisponibles hors connexion API pour ce produit.',
+      )
+      return
+    }
+
+    try {
+      await toggleFavorite(product)
+    } catch (error) {
+      setProductNotice(
+        error?.message ||
+          'Impossible de modifier vos favoris.',
+      )
+    }
   }
 
   const favorite = isFavorite(product)
@@ -1037,9 +1101,7 @@ function ProductDetails() {
                       ? 'active'
                       : ''
                   }`}
-                  onClick={() =>
-                    toggleFavorite(product)
-                  }
+                  onClick={handleFavoriteToggle}
                   aria-label={
                     favorite
                       ? 'Retirer des favoris'
@@ -1540,7 +1602,9 @@ function ProductDetails() {
             REVIEWS
         ========================= */}
 
-        <ProductReviews productId={product.databaseId} />
+        {product.databaseId ? (
+          <ProductReviews productId={product.databaseId} />
+        ) : null}
 
         {/* =========================
             SIMILAR PRODUCTS

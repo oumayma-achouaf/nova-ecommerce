@@ -36,6 +36,9 @@ export async function login(data) {
 export async function getMe() {
   const response = await api.get(
     '/auth/me',
+    {
+      timeout: 8000,
+    },
   )
 
   return response.data

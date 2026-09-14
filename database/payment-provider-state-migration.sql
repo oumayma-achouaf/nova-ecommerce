@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS payment_webhook_events (
   payment_provider VARCHAR(100) NOT NULL,
   provider_event_id VARCHAR(191) NOT NULL,
   event_type VARCHAR(191) NULL,
-  order_id INT(11) NULL,
+  order_id INT UNSIGNED NULL,
   payload_hash CHAR(64) NULL,
   processing_status ENUM(
     'received',

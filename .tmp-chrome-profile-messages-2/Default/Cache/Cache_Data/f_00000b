@@ -1,0 +1,379 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/layout/Footer.jsx");const _jsxDEV = __vite__cjsImport2_react_jsxDevRuntime["jsxDEV"];import { Heart, Search, ShoppingBag, UserRound } from "/node_modules/.vite/deps/lucide-react.js?v=753b8cbf";
+import { Link, useLocation } from "/node_modules/.vite/deps/react-router-dom.js?v=a2836926";
+var _jsxFileName = "C:/Users/dell/Desktop/NOVA/client/src/components/layout/Footer.jsx";
+import __vite__cjsImport2_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=ea0ae2b5";
+var _s = $RefreshSig$();
+function Footer() {
+	_s();
+	const location = useLocation();
+	const currentYear = new Date().getFullYear();
+	const handleScrollTop = () => {
+		window.scrollTo({
+			top: 0,
+			behavior: "smooth"
+		});
+	};
+	const isActive = (path) => location.pathname === path;
+	return /* @__PURE__ */ _jsxDEV("footer", {
+		className: "nova-footer",
+		children: [/* @__PURE__ */ _jsxDEV("div", {
+			className: "nova-footer-main",
+			children: /* @__PURE__ */ _jsxDEV("div", {
+				className: "nova-footer-container",
+				children: [
+					/* @__PURE__ */ _jsxDEV("div", {
+						className: "nova-footer-brand",
+						children: [
+							/* @__PURE__ */ _jsxDEV(Link, {
+								to: "/",
+								className: "nova-footer-logo",
+								onClick: handleScrollTop,
+								children: "NOVA"
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 41,
+								columnNumber: 13
+							}, this),
+							/* @__PURE__ */ _jsxDEV("p", {
+								className: "nova-footer-description",
+								children: "Une sélection pensée pour un style moderne, élégant et intemporel."
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 49,
+								columnNumber: 13
+							}, this),
+							/* @__PURE__ */ _jsxDEV("p", {
+								className: "nova-footer-signature",
+								children: "Votre style, votre NOVA."
+							}, void 0, false, {
+								fileName: _jsxFileName,
+								lineNumber: 54,
+								columnNumber: 13
+							}, this)
+						]
+					}, void 0, true, {
+						fileName: _jsxFileName,
+						lineNumber: 39,
+						columnNumber: 11
+					}, this),
+					/* @__PURE__ */ _jsxDEV("div", {
+						className: "nova-footer-column",
+						children: [/* @__PURE__ */ _jsxDEV("h3", { children: "Boutique" }, void 0, false, {
+							fileName: _jsxFileName,
+							lineNumber: 65,
+							columnNumber: 13
+						}, this), /* @__PURE__ */ _jsxDEV("nav", {
+							className: "nova-footer-links",
+							children: [
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/",
+									className: isActive("/") ? "active" : "",
+									onClick: handleScrollTop,
+									children: "Accueil"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 69,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/nouveautes",
+									className: isActive("/nouveautes") ? "active" : "",
+									onClick: handleScrollTop,
+									children: "Nouveautés"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 77,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/femme",
+									className: isActive("/femme") ? "active" : "",
+									onClick: handleScrollTop,
+									children: "Femme"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 89,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/homme",
+									className: isActive("/homme") ? "active" : "",
+									onClick: handleScrollTop,
+									children: "Homme"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 101,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/accessoires",
+									className: isActive("/accessoires") ? "active" : "",
+									onClick: handleScrollTop,
+									children: "Accessoires"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 113,
+									columnNumber: 15
+								}, this)
+							]
+						}, void 0, true, {
+							fileName: _jsxFileName,
+							lineNumber: 67,
+							columnNumber: 13
+						}, this)]
+					}, void 0, true, {
+						fileName: _jsxFileName,
+						lineNumber: 63,
+						columnNumber: 11
+					}, this),
+					/* @__PURE__ */ _jsxDEV("div", {
+						className: "nova-footer-column",
+						children: [/* @__PURE__ */ _jsxDEV("h3", { children: "Mon compte" }, void 0, false, {
+							fileName: _jsxFileName,
+							lineNumber: 134,
+							columnNumber: 13
+						}, this), /* @__PURE__ */ _jsxDEV("nav", {
+							className: "nova-footer-links",
+							children: [
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte",
+									onClick: handleScrollTop,
+									children: "Mon profil"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 138,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte/commandes",
+									onClick: handleScrollTop,
+									children: "Mes commandes"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 145,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte/adresses",
+									onClick: handleScrollTop,
+									children: "Mes adresses"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 152,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte/favoris",
+									onClick: handleScrollTop,
+									children: "Mes favoris"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 159,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte/securite",
+									onClick: handleScrollTop,
+									children: "Sécurité"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 166,
+									columnNumber: 15
+								}, this)
+							]
+						}, void 0, true, {
+							fileName: _jsxFileName,
+							lineNumber: 136,
+							columnNumber: 13
+						}, this)]
+					}, void 0, true, {
+						fileName: _jsxFileName,
+						lineNumber: 132,
+						columnNumber: 11
+					}, this),
+					/* @__PURE__ */ _jsxDEV("div", {
+						className: "nova-footer-column",
+						children: [/* @__PURE__ */ _jsxDEV("h3", { children: "Accès rapide" }, void 0, false, {
+							fileName: _jsxFileName,
+							lineNumber: 182,
+							columnNumber: 13
+						}, this), /* @__PURE__ */ _jsxDEV("nav", {
+							className: "nova-footer-links",
+							children: [
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/recherche",
+									onClick: handleScrollTop,
+									children: [/* @__PURE__ */ _jsxDEV(Search, { size: 15 }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 190,
+										columnNumber: 17
+									}, this), /* @__PURE__ */ _jsxDEV("span", { children: "Recherche" }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 191,
+										columnNumber: 17
+									}, this)]
+								}, void 0, true, {
+									fileName: _jsxFileName,
+									lineNumber: 186,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/panier",
+									onClick: handleScrollTop,
+									children: [/* @__PURE__ */ _jsxDEV(ShoppingBag, { size: 15 }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 198,
+										columnNumber: 17
+									}, this), /* @__PURE__ */ _jsxDEV("span", { children: "Mon panier" }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 199,
+										columnNumber: 17
+									}, this)]
+								}, void 0, true, {
+									fileName: _jsxFileName,
+									lineNumber: 194,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/mon-compte/favoris",
+									onClick: handleScrollTop,
+									children: [/* @__PURE__ */ _jsxDEV(Heart, { size: 15 }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 206,
+										columnNumber: 17
+									}, this), /* @__PURE__ */ _jsxDEV("span", { children: "Mes favoris" }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 207,
+										columnNumber: 17
+									}, this)]
+								}, void 0, true, {
+									fileName: _jsxFileName,
+									lineNumber: 202,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/connexion",
+									onClick: handleScrollTop,
+									children: [/* @__PURE__ */ _jsxDEV(UserRound, { size: 15 }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 214,
+										columnNumber: 17
+									}, this), /* @__PURE__ */ _jsxDEV("span", { children: "Connexion" }, void 0, false, {
+										fileName: _jsxFileName,
+										lineNumber: 215,
+										columnNumber: 17
+									}, this)]
+								}, void 0, true, {
+									fileName: _jsxFileName,
+									lineNumber: 210,
+									columnNumber: 15
+								}, this),
+								/* @__PURE__ */ _jsxDEV(Link, {
+									to: "/inscription",
+									onClick: handleScrollTop,
+									children: "Créer un compte"
+								}, void 0, false, {
+									fileName: _jsxFileName,
+									lineNumber: 218,
+									columnNumber: 15
+								}, this)
+							]
+						}, void 0, true, {
+							fileName: _jsxFileName,
+							lineNumber: 184,
+							columnNumber: 13
+						}, this)]
+					}, void 0, true, {
+						fileName: _jsxFileName,
+						lineNumber: 180,
+						columnNumber: 11
+					}, this)
+				]
+			}, void 0, true, {
+				fileName: _jsxFileName,
+				lineNumber: 35,
+				columnNumber: 9
+			}, this)
+		}, void 0, false, {
+			fileName: _jsxFileName,
+			lineNumber: 33,
+			columnNumber: 7
+		}, this), /* @__PURE__ */ _jsxDEV("div", {
+			className: "nova-footer-bottom",
+			children: /* @__PURE__ */ _jsxDEV("div", {
+				className: "nova-footer-bottom-inner",
+				children: [/* @__PURE__ */ _jsxDEV("p", {
+					className: "nova-footer-copyright",
+					children: [
+						"© ",
+						currentYear,
+						" NOVA — Designed & Developed by",
+						" ",
+						/* @__PURE__ */ _jsxDEV("strong", { children: "Omaima Achouaf" }, void 0, false, {
+							fileName: _jsxFileName,
+							lineNumber: 240,
+							columnNumber: 13
+						}, this),
+						". All rights reserved."
+					]
+				}, void 0, true, {
+					fileName: _jsxFileName,
+					lineNumber: 238,
+					columnNumber: 11
+				}, this), /* @__PURE__ */ _jsxDEV("button", {
+					type: "button",
+					className: "nova-footer-top",
+					onClick: handleScrollTop,
+					children: "Retour en haut"
+				}, void 0, false, {
+					fileName: _jsxFileName,
+					lineNumber: 243,
+					columnNumber: 11
+				}, this)]
+			}, void 0, true, {
+				fileName: _jsxFileName,
+				lineNumber: 236,
+				columnNumber: 9
+			}, this)
+		}, void 0, false, {
+			fileName: _jsxFileName,
+			lineNumber: 234,
+			columnNumber: 7
+		}, this)]
+	}, void 0, true, {
+		fileName: _jsxFileName,
+		lineNumber: 31,
+		columnNumber: 5
+	}, this);
+}
+_s(Footer, "pkHmaVRPskBaU4tMJuJJpV42k1I=", false, function() {
+	return [useLocation];
+});
+_c = Footer;
+export default Footer;
+var _c;
+$RefreshReg$(_c, "Footer");
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+import * as __vite_react_currentExports from "/src/components/layout/Footer.jsx";
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+
+  const currentExports = __vite_react_currentExports;
+  queueMicrotask(() => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/dell/Desktop/NOVA/client/src/components/layout/Footer.jsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/dell/Desktop/NOVA/client/src/components/layout/Footer.jsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+function $RefreshReg$(type, id) { return RefreshRuntime.register(type, "C:/Users/dell/Desktop/NOVA/client/src/components/layout/Footer.jsx" + ' ' + id); }
+function $RefreshSig$() { return RefreshRuntime.createSignatureFunctionForTransform(); }
+
+//# sourceMappingURL=data:application/json;base64,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SUUsd0JBQUMsT0FBRCxFQUFPLE1BQU0sR0FBSzs7OzttQkFDbEIsd0JBQUMsUUFBRCxZQUFNLGNBQWlCOzs7O2lCQUNuQjs7Ozs7O1FBRU4sd0JBQUMsTUFBRDtTQUNFLElBQUc7U0FDSCxTQUFTO21CQUZYLENBSUUsd0JBQUMsV0FBRCxFQUFXLE1BQU0sR0FBSzs7OzttQkFDdEIsd0JBQUMsUUFBRCxZQUFNLFlBQWU7Ozs7aUJBQ2pCOzs7Ozs7UUFFTix3QkFBQyxNQUFEO1NBQ0UsSUFBRztTQUNILFNBQVM7bUJBQ1Y7UUFFSzs7Ozs7T0FFSDs7Ozs7Y0FFRjs7Ozs7O0lBRUY7Ozs7OztFQUVGOzs7O1lBR0wsd0JBQUMsT0FBRDtHQUFLLFdBQVU7YUFFYix3QkFBQyxPQUFEO0lBQUssV0FBVTtjQUFmLENBRUUsd0JBQUMsS0FBRDtLQUFHLFdBQVU7ZUFBYjtNQUFxQztNQUNoQztNQUFZO01BQW9DO01BQ25ELHdCQUFDLFVBQUQsWUFBUSxpQkFBc0I7Ozs7O01BQUM7S0FDOUI7Ozs7O2NBRUgsd0JBQUMsVUFBRDtLQUNFLE1BQUs7S0FDTCxXQUFVO0tBQ1YsU0FBUztlQUNWO0lBRU87Ozs7WUFFTDs7Ozs7O0VBRUY7Ozs7VUFFQzs7Ozs7O0FBRVo7Ozs7O0FBR0EsZUFBZSIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJGb290ZXIuanN4Il0sInZlcnNpb24iOjMsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XHJcbiAgSGVhcnQsXHJcbiAgU2VhcmNoLFxyXG4gIFNob3BwaW5nQmFnLFxyXG4gIFVzZXJSb3VuZCxcclxufSBmcm9tICdsdWNpZGUtcmVhY3QnXHJcblxyXG5pbXBvcnQge1xyXG4gIExpbmssXHJcbiAgdXNlTG9jYXRpb24sXHJcbn0gZnJvbSAncmVhY3Qtcm91dGVyLWRvbSdcclxuXHJcblxyXG5cclxuZnVuY3Rpb24gRm9vdGVyKCkge1xyXG4gIGNvbnN0IGxvY2F0aW9uID0gdXNlTG9jYXRpb24oKVxyXG4gIGNvbnN0IGN1cnJlbnRZZWFyID0gbmV3IERhdGUoKS5nZXRGdWxsWWVhcigpXHJcblxyXG4gIGNvbnN0IGhhbmRsZVNjcm9sbFRvcCA9ICgpID0+IHtcclxuICAgIHdpbmRvdy5zY3JvbGxUbyh7XHJcbiAgICAgIHRvcDogMCxcclxuICAgICAgYmVoYXZpb3I6ICdzbW9vdGgnLFxyXG4gICAgfSlcclxuICB9XHJcblxyXG4gIGNvbnN0IGlzQWN0aXZlID0gKHBhdGgpID0+XHJcbiAgICBsb2NhdGlvbi5wYXRobmFtZSA9PT0gcGF0aFxyXG5cclxuXHJcbiAgcmV0dXJuIChcclxuICAgIDxmb290ZXIgY2xhc3NOYW1lPVwibm92YS1mb290ZXJcIj5cclxuXHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwibm92YS1mb290ZXItbWFpblwiPlxyXG5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWNvbnRhaW5lclwiPlxyXG5cclxuICAgICAgICAgIHsvKiBCUkFORCAqL31cclxuXHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWJyYW5kXCI+XHJcblxyXG4gICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgIHRvPVwiL1wiXHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwibm92YS1mb290ZXItbG9nb1wiXHJcbiAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgTk9WQVxyXG4gICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJub3ZhLWZvb3Rlci1kZXNjcmlwdGlvblwiPlxyXG4gICAgICAgICAgICAgIFVuZSBzw6lsZWN0aW9uIHBlbnPDqWUgcG91ciB1biBzdHlsZVxyXG4gICAgICAgICAgICAgIG1vZGVybmUsIMOpbMOpZ2FudCBldCBpbnRlbXBvcmVsLlxyXG4gICAgICAgICAgICA8L3A+XHJcblxyXG4gICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJub3ZhLWZvb3Rlci1zaWduYXR1cmVcIj5cclxuICAgICAgICAgICAgICBWb3RyZSBzdHlsZSwgdm90cmUgTk9WQS5cclxuICAgICAgICAgICAgPC9wPlxyXG5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuXHJcbiAgICAgICAgICB7LyogQk9VVElRVUUgKi99XHJcblxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJub3ZhLWZvb3Rlci1jb2x1bW5cIj5cclxuXHJcbiAgICAgICAgICAgIDxoMz5Cb3V0aXF1ZTwvaDM+XHJcblxyXG4gICAgICAgICAgICA8bmF2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWxpbmtzXCI+XHJcblxyXG4gICAgICAgICAgICAgIDxMaW5rXHJcbiAgICAgICAgICAgICAgICB0bz1cIi9cIlxyXG4gICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtpc0FjdGl2ZSgnLycpID8gJ2FjdGl2ZScgOiAnJ31cclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9e2hhbmRsZVNjcm9sbFRvcH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICBBY2N1ZWlsXHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvbm91dmVhdXRlc1wiXHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9e1xyXG4gICAgICAgICAgICAgICAgICBpc0FjdGl2ZSgnL25vdXZlYXV0ZXMnKVxyXG4gICAgICAgICAgICAgICAgICAgID8gJ2FjdGl2ZSdcclxuICAgICAgICAgICAgICAgICAgICA6ICcnXHJcbiAgICAgICAgICAgICAgICB9XHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTY3JvbGxUb3B9XHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgTm91dmVhdXTDqXNcclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICAgIDxMaW5rXHJcbiAgICAgICAgICAgICAgICB0bz1cIi9mZW1tZVwiXHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9e1xyXG4gICAgICAgICAgICAgICAgICBpc0FjdGl2ZSgnL2ZlbW1lJylcclxuICAgICAgICAgICAgICAgICAgICA/ICdhY3RpdmUnXHJcbiAgICAgICAgICAgICAgICAgICAgOiAnJ1xyXG4gICAgICAgICAgICAgICAgfVxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIEZlbW1lXHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvaG9tbWVcIlxyXG4gICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtcclxuICAgICAgICAgICAgICAgICAgaXNBY3RpdmUoJy9ob21tZScpXHJcbiAgICAgICAgICAgICAgICAgICAgPyAnYWN0aXZlJ1xyXG4gICAgICAgICAgICAgICAgICAgIDogJydcclxuICAgICAgICAgICAgICAgIH1cclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9e2hhbmRsZVNjcm9sbFRvcH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICBIb21tZVxyXG4gICAgICAgICAgICAgIDwvTGluaz5cclxuXHJcbiAgICAgICAgICAgICAgPExpbmtcclxuICAgICAgICAgICAgICAgIHRvPVwiL2FjY2Vzc29pcmVzXCJcclxuICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17XHJcbiAgICAgICAgICAgICAgICAgIGlzQWN0aXZlKCcvYWNjZXNzb2lyZXMnKVxyXG4gICAgICAgICAgICAgICAgICAgID8gJ2FjdGl2ZSdcclxuICAgICAgICAgICAgICAgICAgICA6ICcnXHJcbiAgICAgICAgICAgICAgICB9XHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTY3JvbGxUb3B9XHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgQWNjZXNzb2lyZXNcclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICA8L25hdj5cclxuXHJcbiAgICAgICAgICA8L2Rpdj5cclxuXHJcblxyXG4gICAgICAgICAgey8qIENPTVBURSAqL31cclxuXHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWNvbHVtblwiPlxyXG5cclxuICAgICAgICAgICAgPGgzPk1vbiBjb21wdGU8L2gzPlxyXG5cclxuICAgICAgICAgICAgPG5hdiBjbGFzc05hbWU9XCJub3ZhLWZvb3Rlci1saW5rc1wiPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvbW9uLWNvbXB0ZVwiXHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTY3JvbGxUb3B9XHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgTW9uIHByb2ZpbFxyXG4gICAgICAgICAgICAgIDwvTGluaz5cclxuXHJcbiAgICAgICAgICAgICAgPExpbmtcclxuICAgICAgICAgICAgICAgIHRvPVwiL21vbi1jb21wdGUvY29tbWFuZGVzXCJcclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9e2hhbmRsZVNjcm9sbFRvcH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICBNZXMgY29tbWFuZGVzXHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvbW9uLWNvbXB0ZS9hZHJlc3Nlc1wiXHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTY3JvbGxUb3B9XHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgTWVzIGFkcmVzc2VzXHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvbW9uLWNvbXB0ZS9mYXZvcmlzXCJcclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9e2hhbmRsZVNjcm9sbFRvcH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICBNZXMgZmF2b3Jpc1xyXG4gICAgICAgICAgICAgIDwvTGluaz5cclxuXHJcbiAgICAgICAgICAgICAgPExpbmtcclxuICAgICAgICAgICAgICAgIHRvPVwiL21vbi1jb21wdGUvc2VjdXJpdGVcIlxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIFPDqWN1cml0w6lcclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICA8L25hdj5cclxuXHJcbiAgICAgICAgICA8L2Rpdj5cclxuXHJcblxyXG4gICAgICAgICAgey8qIEFDQ8OIUyBSQVBJREUgKi99XHJcblxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJub3ZhLWZvb3Rlci1jb2x1bW5cIj5cclxuXHJcbiAgICAgICAgICAgIDxoMz5BY2PDqHMgcmFwaWRlPC9oMz5cclxuXHJcbiAgICAgICAgICAgIDxuYXYgY2xhc3NOYW1lPVwibm92YS1mb290ZXItbGlua3NcIj5cclxuXHJcbiAgICAgICAgICAgICAgPExpbmtcclxuICAgICAgICAgICAgICAgIHRvPVwiL3JlY2hlcmNoZVwiXHJcbiAgICAgICAgICAgICAgICBvbkNsaWNrPXtoYW5kbGVTY3JvbGxUb3B9XHJcbiAgICAgICAgICAgICAgPlxyXG4gICAgICAgICAgICAgICAgPFNlYXJjaCBzaXplPXsxNX0gLz5cclxuICAgICAgICAgICAgICAgIDxzcGFuPlJlY2hlcmNoZTwvc3Bhbj5cclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICAgIDxMaW5rXHJcbiAgICAgICAgICAgICAgICB0bz1cIi9wYW5pZXJcIlxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIDxTaG9wcGluZ0JhZyBzaXplPXsxNX0gLz5cclxuICAgICAgICAgICAgICAgIDxzcGFuPk1vbiBwYW5pZXI8L3NwYW4+XHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvbW9uLWNvbXB0ZS9mYXZvcmlzXCJcclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9e2hhbmRsZVNjcm9sbFRvcH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICA8SGVhcnQgc2l6ZT17MTV9IC8+XHJcbiAgICAgICAgICAgICAgICA8c3Bhbj5NZXMgZmF2b3Jpczwvc3Bhbj5cclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICAgIDxMaW5rXHJcbiAgICAgICAgICAgICAgICB0bz1cIi9jb25uZXhpb25cIlxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIDxVc2VyUm91bmQgc2l6ZT17MTV9IC8+XHJcbiAgICAgICAgICAgICAgICA8c3Bhbj5Db25uZXhpb248L3NwYW4+XHJcbiAgICAgICAgICAgICAgPC9MaW5rPlxyXG5cclxuICAgICAgICAgICAgICA8TGlua1xyXG4gICAgICAgICAgICAgICAgdG89XCIvaW5zY3JpcHRpb25cIlxyXG4gICAgICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgICAgID5cclxuICAgICAgICAgICAgICAgIENyw6llciB1biBjb21wdGVcclxuICAgICAgICAgICAgICA8L0xpbms+XHJcblxyXG4gICAgICAgICAgICA8L25hdj5cclxuXHJcbiAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICA8L2Rpdj5cclxuXHJcblxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWJvdHRvbVwiPlxyXG5cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWJvdHRvbS1pbm5lclwiPlxyXG5cclxuICAgICAgICAgIDxwIGNsYXNzTmFtZT1cIm5vdmEtZm9vdGVyLWNvcHlyaWdodFwiPlxyXG4gICAgICAgICAgICDCqSB7Y3VycmVudFllYXJ9IE5PVkEg4oCUIERlc2lnbmVkICZhbXA7IERldmVsb3BlZCBieXsnICd9XHJcbiAgICAgICAgICAgIDxzdHJvbmc+T21haW1hIEFjaG91YWY8L3N0cm9uZz4uIEFsbCByaWdodHMgcmVzZXJ2ZWQuXHJcbiAgICAgICAgICA8L3A+XHJcblxyXG4gICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcclxuICAgICAgICAgICAgY2xhc3NOYW1lPVwibm92YS1mb290ZXItdG9wXCJcclxuICAgICAgICAgICAgb25DbGljaz17aGFuZGxlU2Nyb2xsVG9wfVxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICBSZXRvdXIgZW4gaGF1dFxyXG4gICAgICAgICAgPC9idXR0b24+XHJcblxyXG4gICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgPC9kaXY+XHJcblxyXG4gICAgPC9mb290ZXI+XHJcbiAgKVxyXG59XHJcblxyXG5cclxuZXhwb3J0IGRlZmF1bHQgRm9vdGVyIl19

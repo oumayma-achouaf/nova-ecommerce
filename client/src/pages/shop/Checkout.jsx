@@ -418,7 +418,7 @@ function Checkout() {
          */
 
         setPendingMessage(
-          'Informations de carte validées. Mode démonstration : aucun paiement réel n’a été effectué.',
+          'Paiement carte indisponible pour le moment : aucun paiement ni commande n’a été effectué.',
         )
 
         return
@@ -446,7 +446,7 @@ function Checkout() {
         }
 
         setPendingMessage(
-          'Adresse PayPal validée. Mode démonstration : aucun paiement réel n’a été effectué.',
+          'Paiement PayPal indisponible pour le moment : aucun paiement ni commande n’a été effectué.',
         )
 
         return

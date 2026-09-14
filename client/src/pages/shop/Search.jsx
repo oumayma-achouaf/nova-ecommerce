@@ -27,6 +27,26 @@ function formatPrice(value) {
   )} DH`
 }
 
+function matchesLocalSearch(product, query) {
+  const normalizedQuery = query.trim().toLowerCase()
+
+  if (!normalizedQuery) {
+    return false
+  }
+
+  return [
+    product.name,
+    product.description,
+    product.department,
+    product.group,
+    product.categoryName,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedQuery)
+}
+
 function Search() {
   const [
     searchParams,
@@ -104,7 +124,7 @@ function Search() {
   }, [query])
 
   const results = useMemo(() => {
-    return databaseProducts
+    const normalizedDatabaseResults = databaseProducts
       .map((databaseProduct) => {
         const localProduct =
           localProducts.find(
@@ -211,7 +231,15 @@ function Search() {
         }
       })
       .filter(Boolean)
-  }, [databaseProducts])
+
+    if (normalizedDatabaseResults.length > 0) {
+      return normalizedDatabaseResults
+    }
+
+    return localProducts.filter((product) =>
+      matchesLocalSearch(product, query),
+    )
+  }, [databaseProducts, query])
 
   return (
     <main className="search-page">
@@ -315,16 +343,20 @@ function Search() {
             Recherche des
             produits...
           </p>
-        ) : error ? (
-          <p role="alert">
-            {error}
-          </p>
         ) : results.length >
           0 ? (
-          <ProductGrid
-            products={results}
-            variant="catalog"
-          />
+          <>
+            {error ? (
+              <p className="catalog-status" role="status">
+                Recherche locale affichee, API momentanement indisponible.
+              </p>
+            ) : null}
+
+            <ProductGrid
+              products={results}
+              variant="catalog"
+            />
+          </>
         ) : query.trim() ? (
           <div
             className="catalog-empty"

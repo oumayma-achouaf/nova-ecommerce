@@ -142,10 +142,19 @@ function AddressForm({
             Pays / Région <b>*</b>
           </span>
 
-          <div className="checkout-input-wrap checkout-select-fake">
+          <div className="checkout-input-wrap checkout-select-wrap">
             <Globe2 size={18} />
 
-            <span>{address.country}</span>
+            <select
+              name="country"
+              value={address.country}
+              onChange={handleChange}
+              required
+            >
+              <option value="Maroc">
+                Maroc
+              </option>
+            </select>
 
             <ChevronDown size={16} />
           </div>

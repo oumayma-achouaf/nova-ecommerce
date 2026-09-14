@@ -301,9 +301,15 @@ function CatalogPage({
   const normalizedProducts =
     useMemo(() => {
       if (
-        loading ||
-        error
+        error ||
+        (!loading &&
+          databaseProducts.length ===
+            0)
       ) {
+        return legacyProducts
+      }
+
+      if (loading) {
         return []
       }
 
@@ -710,12 +716,14 @@ function CatalogPage({
             Chargement des
             produits...
           </p>
-        ) : error ? (
-          <p role="alert">
-            {error}
-          </p>
         ) : (
           <>
+            {error ? (
+              <p className="catalog-status" role="status">
+                Catalogue local affiche, API momentanement indisponible.
+              </p>
+            ) : null}
+
             <ProductGrid
               products={
                 visibleProducts

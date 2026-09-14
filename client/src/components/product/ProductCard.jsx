@@ -47,6 +47,17 @@ function ProductCard({
       return
     }
 
+    const hasBackendId =
+      Number.isInteger(Number(product.databaseId)) &&
+      Number(product.databaseId) > 0
+
+    if (!hasBackendId) {
+      toast.error(
+        'Favoris indisponibles hors connexion API pour ce produit.',
+      )
+      return
+    }
+
     setFavoriteLoading(true)
 
     try {

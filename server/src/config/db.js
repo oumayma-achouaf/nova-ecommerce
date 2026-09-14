@@ -17,8 +17,20 @@ const userColumns = [
   ['last_name', 'ADD COLUMN last_name VARCHAR(100) NULL AFTER first_name'],
   ['email', 'ADD COLUMN email VARCHAR(191) NULL AFTER last_name'],
   ['phone', 'ADD COLUMN phone VARCHAR(30) NULL AFTER email'],
-  ['password_hash', 'ADD COLUMN password_hash VARCHAR(255) NULL AFTER phone'],
-  ["role", "ADD COLUMN role ENUM('customer', 'admin') NOT NULL DEFAULT 'customer' AFTER password_hash"],
+  ['city', 'ADD COLUMN city VARCHAR(100) NULL AFTER phone'],
+  ['country', "ADD COLUMN country VARCHAR(100) NULL DEFAULT 'Maroc' AFTER city"],
+  ['avatar_url', 'ADD COLUMN avatar_url VARCHAR(255) NULL AFTER country'],
+  [
+    'newsletter_opt_in',
+    'ADD COLUMN newsletter_opt_in TINYINT(1) NOT NULL DEFAULT 0 AFTER avatar_url',
+  ],
+  ['password_hash', 'ADD COLUMN password_hash VARCHAR(255) NULL AFTER newsletter_opt_in'],
+  [
+    'two_factor_enabled',
+    'ADD COLUMN two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER password_hash',
+  ],
+  ['two_factor_secret', 'ADD COLUMN two_factor_secret VARCHAR(255) NULL AFTER two_factor_enabled'],
+  ["role", "ADD COLUMN role ENUM('customer', 'admin') NOT NULL DEFAULT 'customer' AFTER two_factor_secret"],
   ['is_active', 'ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER role'],
   ['created_at', 'ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_active'],
   [
@@ -77,7 +89,13 @@ async function ensureAuthSchema() {
       last_name VARCHAR(100) NOT NULL,
       email VARCHAR(191) NOT NULL,
       phone VARCHAR(30) NULL,
+      city VARCHAR(100) NULL,
+      country VARCHAR(100) NULL DEFAULT 'Maroc',
+      avatar_url VARCHAR(255) NULL,
+      newsletter_opt_in TINYINT(1) NOT NULL DEFAULT 0,
       password_hash VARCHAR(255) NOT NULL,
+      two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0,
+      two_factor_secret VARCHAR(255) NULL,
       role ENUM('customer', 'admin') NOT NULL DEFAULT 'customer',
       is_active TINYINT(1) NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +125,45 @@ async function ensureAuthSchema() {
       UNIQUE KEY password_reset_tokens_hash_unique (token_hash),
       KEY password_reset_tokens_user_id_index (user_id),
       CONSTRAINT password_reset_tokens_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      session_id VARCHAR(191) NOT NULL,
+      user_agent VARCHAR(255) NULL,
+      ip_address VARCHAR(45) NULL,
+      last_seen_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      revoked_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY user_sessions_session_id_unique (session_id),
+      KEY user_sessions_user_id_index (user_id),
+      KEY user_sessions_expires_at_index (expires_at),
+      CONSTRAINT user_sessions_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS two_factor_challenges (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      token_hash CHAR(64) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY two_factor_challenges_token_hash_unique (token_hash),
+      KEY two_factor_challenges_user_id_index (user_id),
+      KEY two_factor_challenges_expires_at_index (expires_at),
+      CONSTRAINT two_factor_challenges_user_id_foreign
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
