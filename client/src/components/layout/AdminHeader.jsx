@@ -4,101 +4,34 @@ import {
   ChevronDown,
   Check,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import useAuth from '../../hooks/useAuth.js'
 import {
   adminProfileChangedEvent,
+  fetchAdminProfile,
+  getAdminNotifications,
   getAdminProfile,
+  markAdminNotificationsRead,
+  searchAdmin,
 } from '../../services/adminService.js'
-
-const searchTargets = [
-  {
-    label: 'Tableau de bord',
-    keywords: ['dashboard', 'stats', 'ventes', 'tableau'],
-    to: '/admin',
-  },
-  {
-    label: 'Commandes',
-    keywords: ['commande', 'orders', 'facture', 'livraison'],
-    to: '/admin/commandes',
-  },
-  {
-    label: 'Produits',
-    keywords: ['produit', 'stock', 'sku', 'catalogue'],
-    to: '/admin/produits',
-  },
-  {
-    label: 'Categories',
-    keywords: ['categorie', 'collection', 'rayon'],
-    to: '/admin/categories',
-  },
-  {
-    label: 'Clients',
-    keywords: ['client', 'customer', 'notes', 'tags'],
-    to: '/admin/clients',
-  },
-  {
-    label: 'Promotions',
-    keywords: ['promotion', 'coupon', 'code', 'remise'],
-    to: '/admin/promotions',
-  },
-  {
-    label: 'Analyses',
-    keywords: ['analyse', 'analytics', 'rapport', 'performance'],
-    to: '/admin/analyses',
-  },
-  {
-    label: 'Messages',
-    keywords: ['message', 'support', 'conversation'],
-    to: '/admin/messages',
-  },
-  {
-    label: 'Parametres',
-    keywords: ['parametre', 'settings', 'paiement', 'securite'],
-    to: '/admin/parametres',
-  },
-  {
-    label: 'Profil administrateur',
-    keywords: ['profil', 'admin', 'avatar'],
-    to: '/admin/profil',
-  },
-]
-
-const initialNotifications = [
-  {
-    id: 1,
-    title: 'Commande #10024 en attente',
-    detail: 'Un client attend une confirmation.',
-    unread: true,
-  },
-  {
-    id: 2,
-    title: 'Stock faible',
-    detail: 'Pull en cachemire atteint le seuil.',
-    unread: true,
-  },
-  {
-    id: 3,
-    title: 'Message client',
-    detail: 'Nouvelle reponse dans Messages.',
-    unread: false,
-  },
-]
 
 export default function AdminHeader({
   searchPlaceholder = 'Rechercher une commande, un produit, un client...',
 }) {
   const navigate = useNavigate()
   const panelRef = useRef(null)
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
-  const [profile, setProfile] = useState(() => getAdminProfile())
-  const [notifications, setNotifications] = useState(initialNotifications)
+  const [profile, setProfile] = useState(() => getAdminProfile(user))
+  const [notifications, setNotifications] = useState([])
+  const [results, setResults] = useState([])
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
 
   useEffect(() => {
     const handleProfileChange = (event) => {
-      setProfile(event.detail || getAdminProfile())
+      setProfile(event.detail || getAdminProfile(user))
     }
 
     window.addEventListener(adminProfileChangedEvent, handleProfileChange)
@@ -108,6 +41,54 @@ export default function AdminHeader({
         adminProfileChangedEvent,
         handleProfileChange,
       )
+    }
+  }, [user])
+
+  useEffect(() => {
+    let isActive = true
+
+    setProfile(getAdminProfile(user))
+
+    async function loadProfile() {
+      try {
+        const nextProfile = await fetchAdminProfile()
+
+        if (isActive) {
+          setProfile(nextProfile)
+        }
+      } catch {
+        // Auth interceptor handles invalid sessions.
+      }
+    }
+
+    loadProfile()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadNotifications() {
+      try {
+        const data = await getAdminNotifications()
+
+        if (isActive) {
+          setNotifications(data.notifications)
+        }
+      } catch {
+        if (isActive) {
+          setNotifications([])
+        }
+      }
+    }
+
+    loadNotifications()
+
+    return () => {
+      isActive = false
     }
   }, [])
 
@@ -128,23 +109,38 @@ export default function AdminHeader({
     }
   }, [])
 
-  const results = useMemo(() => {
+  useEffect(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     if (!normalizedQuery) {
-      return []
+      setResults([])
+      return undefined
     }
 
-    return searchTargets.filter((target) => {
-      const searchable = [
-        target.label,
-        ...target.keywords,
-      ]
-        .join(' ')
-        .toLowerCase()
+    if (normalizedQuery.length < 2) {
+      setResults([])
+      return undefined
+    }
 
-      return searchable.includes(normalizedQuery)
-    })
+    let isActive = true
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const nextResults = await searchAdmin(normalizedQuery)
+
+        if (isActive) {
+          setResults(nextResults)
+        }
+      } catch {
+        if (isActive) {
+          setResults([])
+        }
+      }
+    }, 250)
+
+    return () => {
+      isActive = false
+      window.clearTimeout(timeoutId)
+    }
   }, [query])
 
   const unreadCount = notifications.filter(
@@ -165,13 +161,45 @@ export default function AdminHeader({
     setQuery('')
   }
 
-  const markAllRead = () => {
-    setNotifications((currentNotifications) =>
-      currentNotifications.map((notification) => ({
-        ...notification,
-        unread: false,
-      })),
-    )
+  const markAllRead = async () => {
+    try {
+      const data = await markAdminNotificationsRead([], true)
+
+      setNotifications(data.notifications)
+    } catch {
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) => ({
+          ...notification,
+          unread: false,
+        })),
+      )
+    }
+  }
+
+  const openNotification = async (notification) => {
+    try {
+      const data = await markAdminNotificationsRead([
+        notification.key || notification.id,
+      ])
+
+      setNotifications(data.notifications)
+    } catch {
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((item) =>
+          item.id === notification.id
+            ? {
+                ...item,
+                unread: false,
+              }
+            : item,
+        ),
+      )
+    }
+
+    if (notification.to) {
+      navigate(notification.to)
+      setIsNotificationOpen(false)
+    }
   }
 
   return (
@@ -235,30 +263,24 @@ export default function AdminHeader({
                 </button>
               </div>
 
-              {notifications.map((notification) => (
+              {notifications.length > 0 ? notifications.map((notification) => (
                 <button
                   type="button"
                   className={
                     notification.unread ? 'is-unread' : ''
                   }
                   key={notification.id}
-                  onClick={() => {
-                    setNotifications((currentNotifications) =>
-                      currentNotifications.map((item) =>
-                        item.id === notification.id
-                          ? {
-                              ...item,
-                              unread: false,
-                            }
-                          : item,
-                      ),
-                    )
-                  }}
+                  onClick={() => openNotification(notification)}
                 >
                   <strong>{notification.title}</strong>
                   <span>{notification.detail}</span>
                 </button>
-              ))}
+              )) : (
+                <button type="button">
+                  <strong>Aucune notification</strong>
+                  <span>Tout est a jour.</span>
+                </button>
+              )}
             </div>
           ) : null}
         </div>
@@ -271,7 +293,11 @@ export default function AdminHeader({
           aria-label="Ouvrir le profil administrateur"
         >
           <div className="admin-header__avatar">
-            <span>{profile.initials}</span>
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.fullName} />
+            ) : (
+              <span>{profile.initials}</span>
+            )}
           </div>
 
           <div className="admin-header__profile-text">

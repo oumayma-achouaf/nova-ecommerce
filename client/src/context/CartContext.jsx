@@ -9,30 +9,25 @@ import {
 import cartService from '../services/cartService'
 import productService from '../services/productService'
 import promotionService from '../services/promotionService'
-import { products } from '../pages/shop/catalogData'
+import { resolveMediaUrl } from '../services/media'
 import { AuthContext } from './AuthContext'
 
 const CartContext = createContext(null)
 
 function normalizeCartItems(items = []) {
   return items.map((item) => {
-    const localProduct = products.find(
-      (product) => product.id === item.slug,
-    )
-
-    const image =
+    const image = resolveMediaUrl(
       item.image_url ||
-      item.image ||
-      item.product_image ||
-      item.primary_image ||
-      localProduct?.image ||
-      ''
+        item.image ||
+        item.product_image ||
+        item.primary_image ||
+        '',
+    )
 
     const imageAlt =
       item.image_alt ||
       item.alt_text ||
       item.imageAlt ||
-      localProduct?.imageAlt ||
       item.name ||
       'Produit NOVA'
 
@@ -491,14 +486,20 @@ export function CartProvider({
       )
     }
 
+    const hasVariantOptions =
+      Array.isArray(product.variants) &&
+      product.variants.length > 0
+
     const resolvedVariantId =
       normalizedVariantId !== null
         ? normalizedVariantId
-        : await findVariantId(
-            product,
-            size,
-            color,
-          )
+        : hasVariantOptions
+          ? await findVariantId(
+              product,
+              size,
+              color,
+            )
+          : null
 
     const data =
       await cartService.addItem({

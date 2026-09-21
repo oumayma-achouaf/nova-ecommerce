@@ -37,6 +37,9 @@ function ProductCard({
       : null
     : product.discount
 
+  const productImage =
+    String(product.image || '').trim()
+
   const handleFavoriteClick = async (
     event,
   ) => {
@@ -86,22 +89,34 @@ function ProductCard({
           className="product-card-image-link"
           aria-label={`Voir ${product.name}`}
         >
-          <img
-            className="product-image"
-            src={product.image}
-            alt={
-              product.imageAlt ||
-              product.name
-            }
-            style={
-              product.imagePosition
-                ? {
-                    objectPosition:
-                      product.imagePosition,
-                  }
-                : undefined
-            }
-          />
+          {productImage ? (
+            <img
+              className="product-image"
+              src={productImage}
+              alt={
+                product.imageAlt ||
+                product.name
+              }
+              style={
+                product.imagePosition
+                  ? {
+                      objectPosition:
+                        product.imagePosition,
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <div
+              className="product-image-placeholder"
+              aria-label={
+                product.imageAlt ||
+                product.name
+              }
+            >
+              NOVA
+            </div>
+          )}
         </Link>
 
         {badgeLabel ? (

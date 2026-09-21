@@ -15,14 +15,17 @@ import {
   Users,
   Clock3,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import {
+  deletePromotion as deletePromotionRequest,
+  getAdminApiErrorMessages,
   getPromotions,
-  savePromotions,
+  updatePromotionStatus as updatePromotionStatusRequest,
+  upsertPromotion,
 } from '../../services/adminService.js'
 
 const typeFilters = [
@@ -69,14 +72,14 @@ function PromotionStatCard({
               danger ? 'is-danger' : ''
             }`}
           >
-            <span aria-hidden="true">UP</span>
+            <span aria-hidden="true">DB</span>
             {change}
           </span>
         </div>
 
         <div className="promotions-stat-card__bottom">
           <span>{label}</span>
-          <small>donnees locales</small>
+          <small>base de donnees</small>
         </div>
       </div>
     </div>
@@ -103,18 +106,55 @@ function PromotionThumb({
   )
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')
+}
+
 export default function Promotions() {
   const navigate = useNavigate()
-  const [promotions, setPromotions] = useState(() => getPromotions())
+  const [promotions, setPromotions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [dateFilter, setDateFilter] = useState('september')
+  const [dateFilter, setDateFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
   const [selectedIds, setSelectedIds] = useState([])
   const [openMenuId, setOpenMenuId] = useState(null)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadPromotions() {
+      setLoading(true)
+      setApiError('')
+
+      try {
+        const nextPromotions = await getPromotions()
+
+        if (isActive) {
+          setPromotions(nextPromotions)
+        }
+      } catch (error) {
+        if (isActive) {
+          setApiError(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadPromotions()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const stats = useMemo(() => {
     const activePromotions = promotions.filter(
@@ -123,31 +163,35 @@ export default function Promotions() {
     const expiredPromotions = promotions.filter(
       (promotion) => promotion.statusClass === 'expired',
     ).length
+    const usedCount = promotions.reduce(
+      (total, promotion) => total + Number(promotion.usedCount || 0),
+      0,
+    )
 
     return [
       {
         icon: Tag,
         value: String(activePromotions),
         label: 'Promotions actives',
-        change: '+ local',
+        change: '',
       },
       {
         icon: Users,
-        value: String(promotions.length * 420),
-        label: 'Utilisations estimees',
-        change: '+ local',
+        value: String(usedCount),
+        label: 'Utilisations',
+        change: '',
       },
       {
         icon: ShoppingBag,
-        value: `${promotions.length * 3550} DH`,
-        label: 'CA promotionnel',
-        change: '+ local',
+        value: String(promotions.length),
+        label: 'Promotions total',
+        change: '',
       },
       {
         icon: Clock3,
         value: String(expiredPromotions),
         label: 'Promotions expirees',
-        change: '+ local',
+        change: '',
         danger: true,
       },
     ]
@@ -168,7 +212,7 @@ export default function Promotions() {
         promotion.statusClass === statusFilter
       const matchesDate =
         dateFilter === 'all' ||
-        promotion.period.toLowerCase().includes('sept')
+        promotion.period.toLowerCase().includes(dateFilter.toLowerCase())
 
       return matchesSearch && matchesType && matchesStatus && matchesDate
     })
@@ -187,12 +231,6 @@ export default function Promotions() {
   const allVisibleSelected =
     visiblePromotions.length > 0 &&
     visiblePromotions.every((promotion) => selectedIds.includes(promotion.id))
-
-  const persistPromotions = (nextPromotions, nextNotice) => {
-    setPromotions(nextPromotions)
-    savePromotions(nextPromotions)
-    setNotice(nextNotice)
-  }
 
   const toggleAllVisible = () => {
     setSelectedIds((currentIds) => {
@@ -229,66 +267,100 @@ export default function Promotions() {
     setSearchTerm('')
     setTypeFilter('all')
     setStatusFilter('all')
-    setDateFilter('september')
+    setDateFilter('all')
     setPage(1)
   }
 
-  const deletePromotion = (promotion) => {
-    if (!window.confirm(`Supprimer "${promotion.title}" ?`)) {
+  const deletePromotion = async (promotion) => {
+    if (!window.confirm(`Supprimer ou desactiver "${promotion.title}" ?`)) {
       return
     }
 
-    const nextPromotions = promotions.filter(
-      (currentPromotion) => currentPromotion.id !== promotion.id,
-    )
+    setApiError('')
 
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => id !== promotion.id),
-    )
-    persistPromotions(nextPromotions, 'Promotion supprimee localement.')
-  }
+    try {
+      const deactivatedPromotion = await deletePromotionRequest(promotion.id)
 
-  const duplicatePromotion = (promotion) => {
-    const nextId =
-      Math.max(0, ...promotions.map((item) => Number(item.id) || 0)) + 1
-    const clone = {
-      ...promotion,
-      id: nextId,
-      title: `${promotion.title} copie`,
-      code: `${promotion.code}-COPY`,
-      status: 'Brouillon',
-      statusClass: 'draft',
+      if (deactivatedPromotion) {
+        setPromotions((currentPromotions) =>
+          currentPromotions.map((currentPromotion) =>
+            currentPromotion.id === deactivatedPromotion.id
+              ? deactivatedPromotion
+              : currentPromotion,
+          ),
+        )
+        setNotice('Promotion deja utilisee : elle a ete desactivee.')
+      } else {
+        setPromotions((currentPromotions) =>
+          currentPromotions.filter(
+            (currentPromotion) => currentPromotion.id !== promotion.id,
+          ),
+        )
+        setNotice('Promotion supprimee en base.')
+      }
+
+      setSelectedIds((currentIds) =>
+        currentIds.filter((id) => id !== promotion.id),
+      )
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
     }
-
-    persistPromotions(
-      [clone, ...promotions],
-      'Copie de promotion creee localement.',
-    )
   }
 
-  const updatePromotionStatus = (promotion, statusClass) => {
-    const nextPromotions = promotions.map((currentPromotion) =>
-      currentPromotion.id === promotion.id
-        ? {
-            ...currentPromotion,
-            statusClass,
-            status: statusLabels[statusClass],
-          }
-        : currentPromotion,
-    )
+  const duplicatePromotion = async (promotion) => {
+    setApiError('')
 
-    persistPromotions(
-      nextPromotions,
-      `Statut mis a jour : ${statusLabels[statusClass]}.`,
-    )
-    setOpenMenuId(null)
+    try {
+      const clone = await upsertPromotion({
+        ...promotion,
+        id: null,
+        name: `${promotion.title} copie`,
+        title: `${promotion.title} copie`,
+        code: `${promotion.code}-COPY`,
+        statusClass: 'draft',
+      })
+
+      setPromotions((currentPromotions) => [clone, ...currentPromotions])
+      setNotice('Copie de promotion creee en base.')
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const updatePromotionStatus = async (promotion, statusClass) => {
+    setApiError('')
+
+    try {
+      const savedPromotion = await updatePromotionStatusRequest(
+        promotion.id,
+        statusClass,
+      )
+
+      setPromotions((currentPromotions) =>
+        currentPromotions.map((currentPromotion) =>
+          currentPromotion.id === promotion.id
+            ? savedPromotion
+            : currentPromotion,
+        ),
+      )
+      setNotice(`Statut mis a jour : ${statusLabels[statusClass]}.`)
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
   const filterButtonLabel =
     searchTerm ||
     typeFilter !== 'all' ||
     statusFilter !== 'all' ||
-    dateFilter !== 'september'
+    dateFilter !== 'all'
       ? 'Reinitialiser'
       : 'Filtrer'
 
@@ -327,6 +399,16 @@ export default function Promotions() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des promotions depuis la base de donnees...
+            </p>
+          ) : null}
+          {apiError ? (
+            <div className="product-form-alert product-form-alert--error">
+              {apiError}
+            </div>
+          ) : null}
 
           <section className="promotions-stats">
             {stats.map((stat) => (
@@ -384,8 +466,19 @@ export default function Promotions() {
                   value={dateFilter}
                   onChange={resetToFirstPage(setDateFilter)}
                 >
-                  <option value="september">Septembre 2026</option>
                   <option value="all">Toutes les periodes</option>
+                  <option value="janv">Janvier</option>
+                  <option value="fevr">Fevrier</option>
+                  <option value="mars">Mars</option>
+                  <option value="avr">Avril</option>
+                  <option value="mai">Mai</option>
+                  <option value="juin">Juin</option>
+                  <option value="juil">Juillet</option>
+                  <option value="aout">Aout</option>
+                  <option value="sept">Septembre</option>
+                  <option value="oct">Octobre</option>
+                  <option value="nov">Novembre</option>
+                  <option value="dec">Decembre</option>
                 </select>
                 <ChevronDown size={16} strokeWidth={1.7} />
               </label>
@@ -557,7 +650,9 @@ export default function Promotions() {
                   {visiblePromotions.length === 0 ? (
                     <tr>
                       <td className="promotions-table__empty" colSpan="8">
-                        Aucune promotion trouvee
+                        {loading
+                          ? 'Chargement des promotions...'
+                          : 'Aucune promotion trouvee'}
                       </td>
                     </tr>
                   ) : null}
@@ -573,7 +668,7 @@ export default function Promotions() {
                   : (safePage - 1) * pageSize + 1}{' '}
                 a{' '}
                 {Math.min(safePage * pageSize, filteredPromotions.length)} sur{' '}
-                {filteredPromotions.length} promotions
+                {formatNumber(filteredPromotions.length)} promotions
               </span>
 
               <div className="promotions-pagination__pages">

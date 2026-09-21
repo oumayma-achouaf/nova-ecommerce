@@ -3,6 +3,8 @@ import { Truck } from 'lucide-react'
 function DeliveryMethod({
   delivery,
   onDeliveryChange,
+  shipping,
+  standardIsFree = false,
 }) {
   return (
     <section className="checkout-section">
@@ -46,8 +48,8 @@ function DeliveryMethod({
             </small>
           </span>
 
-          <strong className="delivery-price free">
-            Gratuite
+          <strong className={standardIsFree ? 'delivery-price free' : 'delivery-price'}>
+            {standardIsFree ? 'Gratuite' : `${shipping.standard} DH`}
           </strong>
         </button>
 
@@ -79,7 +81,7 @@ function DeliveryMethod({
           </span>
 
           <strong className="delivery-price">
-            50 DH
+            {shipping.express} DH
           </strong>
         </button>
 

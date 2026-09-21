@@ -9,6 +9,11 @@ import {
 import { AuthProvider } from './context/AuthContext.jsx'
 import { CartProvider } from './context/CartContext.jsx'
 import { WishlistProvider } from './context/WishlistContext.jsx'
+import {
+  StorefrontSettingsProvider,
+  useStorefrontSettings,
+} from './context/StorefrontSettingsContext.jsx'
+import useAuth from './hooks/useAuth.js'
 import PrivateRoute from './routes/PrivateRoute.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 
@@ -61,9 +66,41 @@ import './styles/shop.css'
 
 function AppContent() {
   const location = useLocation()
+  const { user } = useAuth()
+  const { settings, loading: settingsLoading } =
+    useStorefrontSettings()
 
   const isAdminPage =
     location.pathname.startsWith('/admin')
+
+  const isAuthPage = [
+    '/connexion',
+    '/inscription',
+    '/mot-de-passe-oublie',
+    '/reinitialiser-mot-de-passe',
+  ].some((path) => location.pathname.startsWith(path))
+
+  if (
+    !settingsLoading &&
+    settings.maintenanceMode &&
+    !isAdminPage &&
+    !isAuthPage &&
+    user?.role !== 'admin'
+  ) {
+    return (
+      <main className="payment-return-page">
+        <div className="nova-container">
+          <section className="payment-return-panel">
+            <h1>{settings.storeName} est en maintenance</h1>
+            <p>
+              La boutique est temporairement indisponible. Merci de revenir
+              prochainement.
+            </p>
+          </section>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <div
@@ -416,11 +453,13 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <AppContent />
-          </WishlistProvider>
-        </CartProvider>
+        <StorefrontSettingsProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <AppContent />
+            </WishlistProvider>
+          </CartProvider>
+        </StorefrontSettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   )

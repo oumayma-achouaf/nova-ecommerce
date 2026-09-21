@@ -6,41 +6,29 @@ import {
   Save,
   TicketPercent,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import {
-  getPromotions,
+  getAdminApiErrorMessages,
+  getPromotion,
   upsertPromotion,
 } from '../../services/adminService.js'
 
 const typeOptions = [
-  ['code', 'Code promo'],
-  ['discount', 'Reduction'],
-  ['delivery', 'Livraison'],
+  ['percentage', 'Pourcentage'],
+  ['fixed', 'Montant fixe'],
+  ['free_shipping', 'Livraison'],
 ]
 
 const statusOptions = [
-  ['draft', 'Brouillon'],
-  ['planned', 'Planifiee'],
+  ['inactive', 'Brouillon'],
+  ['scheduled', 'Planifiee'],
   ['active', 'Active'],
   ['expired', 'Expiree'],
 ]
-
-const typeLabels = {
-  code: 'Code promo',
-  discount: 'Reduction',
-  delivery: 'Livraison',
-}
-
-const statusLabels = {
-  draft: 'Brouillon',
-  planned: 'Planifiee',
-  active: 'Active',
-  expired: 'Expiree',
-}
 
 function SelectField({
   label,
@@ -71,6 +59,7 @@ function TextField({
   name,
   value,
   onChange,
+  type = 'text',
   required = false,
 }) {
   return (
@@ -80,35 +69,191 @@ function TextField({
         {required ? <strong>*</strong> : null}
       </span>
       <div className="promotion-create-input">
-        <input name={name} value={value} onChange={onChange} />
+        <input
+          name={name}
+          type={type}
+          value={value}
+          onChange={onChange}
+        />
       </div>
     </label>
   )
 }
 
+function dateInputValue(value) {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10)
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
+function createFormFromPromotion(promotion) {
+  return {
+    name: promotion.name || promotion.title || '',
+    code: promotion.code || '',
+    apiType: promotion.apiType || 'percentage',
+    value: promotion.value ? String(promotion.value) : '',
+    minimumAmount: promotion.minimumAmount
+      ? String(promotion.minimumAmount)
+      : '',
+    maxUses:
+      promotion.maxUses === null || promotion.maxUses === undefined
+        ? ''
+        : String(promotion.maxUses),
+    startDate: dateInputValue(promotion.startDate),
+    endDate: dateInputValue(promotion.endDate),
+    statusClass:
+      promotion.status === 'scheduled'
+        ? 'scheduled'
+        : promotion.status || 'inactive',
+  }
+}
+
 export default function PromotionEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const promotion = useMemo(
-    () =>
-      getPromotions().find(
-        (currentPromotion) => Number(currentPromotion.id) === Number(id),
-      ),
-    [id],
-  )
-  const [form, setForm] = useState(() => ({
-    title: promotion?.title || '',
-    code: promotion?.code || '',
-    typeClass: promotion?.typeClass || 'code',
-    reduction: promotion?.reduction || '',
-    period: promotion?.period || '',
-    products: promotion?.products || 'Tous les produits',
-    statusClass: promotion?.statusClass || 'draft',
-  }))
+  const [promotion, setPromotion] = useState(null)
+  const [form, setForm] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState([])
   const [notice, setNotice] = useState('')
 
-  if (!promotion) {
+  useEffect(() => {
+    let isActive = true
+
+    async function loadPromotion() {
+      setLoading(true)
+      setErrors([])
+
+      try {
+        const nextPromotion = await getPromotion(id)
+
+        if (isActive) {
+          setPromotion(nextPromotion)
+          setForm(createFormFromPromotion(nextPromotion))
+        }
+      } catch (error) {
+        if (isActive) {
+          setPromotion(null)
+          setErrors(getAdminApiErrorMessages(error))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadPromotion()
+
+    return () => {
+      isActive = false
+    }
+  }, [id])
+
+  const updateField = (event) => {
+    const { name, value } = event.target
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+      ...(name === 'apiType' && value === 'free_shipping'
+        ? {
+            value: '',
+          }
+        : {}),
+    }))
+    setNotice('')
+  }
+
+  const resetForm = () => {
+    setForm(createFormFromPromotion(promotion))
+    setErrors([])
+    setNotice('Modifications annulees.')
+  }
+
+  const savePromotion = async () => {
+    const nextErrors = []
+
+    if (!form.name.trim()) {
+      nextErrors.push('Le nom de la promotion est requis.')
+    }
+
+    if (!form.code.trim()) {
+      nextErrors.push('Le code promo est requis.')
+    }
+
+    if (
+      form.apiType !== 'free_shipping' &&
+      Number(form.value) <= 0
+    ) {
+      nextErrors.push('La reduction doit etre superieure a 0.')
+    }
+
+    setErrors(nextErrors)
+
+    if (nextErrors.length > 0 || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      const savedPromotion = await upsertPromotion({
+        id: promotion.id,
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
+        apiType: form.apiType,
+        value: form.value,
+        minimumAmount: form.minimumAmount,
+        maxUses: form.maxUses,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        statusClass: form.statusClass,
+        productIds: promotion.productIds,
+      })
+
+      setPromotion(savedPromotion)
+      setForm(createFormFromPromotion(savedPromotion))
+      setNotice('Promotion mise a jour en base.')
+    } catch (error) {
+      setNotice('')
+      setErrors(getAdminApiErrorMessages(error))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="admin-layout">
+        <AdminSidebar />
+
+        <div className="admin-main">
+          <AdminHeader searchPlaceholder="Rechercher une promotion..." />
+
+          <main className="admin-dashboard promotion-create-page">
+            <section className="promotion-create-heading">
+              <div>
+                <h1>Chargement de la promotion</h1>
+                <p>Lecture des donnees depuis la base.</p>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (!promotion || !form) {
     return (
       <div className="admin-layout">
         <AdminSidebar />
@@ -120,7 +265,10 @@ export default function PromotionEdit() {
             <section className="promotion-create-heading">
               <div>
                 <h1>Promotion introuvable</h1>
-                <p>Aucune promotion locale ne correspond a cet identifiant.</p>
+                <p>
+                  {errors.join(' ') ||
+                    'Aucune promotion en base ne correspond a cet identifiant.'}
+                </p>
               </div>
               <Link className="promotion-create-primary" to="/admin/promotions">
                 Retour aux promotions
@@ -130,66 +278,6 @@ export default function PromotionEdit() {
         </div>
       </div>
     )
-  }
-
-  const updateField = (event) => {
-    const { name, value } = event.target
-
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }))
-    setNotice('')
-  }
-
-  const resetForm = () => {
-    setForm({
-      title: promotion.title,
-      code: promotion.code,
-      typeClass: promotion.typeClass,
-      reduction: promotion.reduction,
-      period: promotion.period,
-      products: promotion.products,
-      statusClass: promotion.statusClass,
-    })
-    setErrors([])
-    setNotice('Modifications locales annulees.')
-  }
-
-  const savePromotion = () => {
-    const nextErrors = []
-
-    if (!form.title.trim()) {
-      nextErrors.push('Le nom de la promotion est requis.')
-    }
-
-    if (!form.code.trim()) {
-      nextErrors.push('Le code promo est requis.')
-    }
-
-    if (!form.reduction.trim()) {
-      nextErrors.push('La reduction est requise.')
-    }
-
-    setErrors(nextErrors)
-
-    if (nextErrors.length > 0) {
-      return
-    }
-
-    upsertPromotion({
-      ...promotion,
-      title: form.title.trim(),
-      code: form.code.trim().toUpperCase(),
-      type: typeLabels[form.typeClass],
-      typeClass: form.typeClass,
-      reduction: form.reduction.trim(),
-      period: form.period.trim() || promotion.period,
-      products: form.products.trim() || 'Tous les produits',
-      status: statusLabels[form.statusClass],
-      statusClass: form.statusClass,
-    })
-    setNotice('Promotion mise a jour localement.')
   }
 
   return (
@@ -229,6 +317,7 @@ export default function PromotionEdit() {
                 className="promotion-create-secondary"
                 type="button"
                 onClick={() => navigate('/admin/promotions')}
+                disabled={isSaving}
               >
                 Annuler
               </button>
@@ -236,6 +325,7 @@ export default function PromotionEdit() {
                 className="promotion-create-secondary"
                 type="button"
                 onClick={resetForm}
+                disabled={isSaving}
               >
                 <RotateCcw size={16} strokeWidth={1.8} />
                 <span>Reinitialiser</span>
@@ -244,9 +334,10 @@ export default function PromotionEdit() {
                 className="promotion-create-primary"
                 type="button"
                 onClick={savePromotion}
+                disabled={isSaving}
               >
                 <Save size={16} strokeWidth={1.8} />
-                <span>Enregistrer</span>
+                <span>{isSaving ? 'Enregistrement...' : 'Enregistrer'}</span>
               </button>
             </div>
           </section>
@@ -274,15 +365,15 @@ export default function PromotionEdit() {
                   </div>
                   <div>
                     <h2>Informations promotion</h2>
-                    <p>Les changements sont conserves dans le navigateur.</p>
+                    <p>Les changements sont conserves en base.</p>
                   </div>
                 </div>
 
                 <div className="promotion-create-form-grid">
                   <TextField
                     label="Nom"
-                    name="title"
-                    value={form.title}
+                    name="name"
+                    value={form.name}
                     onChange={updateField}
                     required
                   />
@@ -295,8 +386,8 @@ export default function PromotionEdit() {
                   />
                   <SelectField
                     label="Type"
-                    name="typeClass"
-                    value={form.typeClass}
+                    name="apiType"
+                    value={form.apiType}
                     options={typeOptions}
                     onChange={updateField}
                   />
@@ -309,25 +400,40 @@ export default function PromotionEdit() {
                   />
                   <TextField
                     label="Reduction"
-                    name="reduction"
-                    value={form.reduction}
+                    name="value"
+                    type="number"
+                    value={form.value}
                     onChange={updateField}
-                    required
+                    required={form.apiType !== 'free_shipping'}
                   />
                   <TextField
-                    label="Periode"
-                    name="period"
-                    value={form.period}
+                    label="Montant minimum"
+                    name="minimumAmount"
+                    type="number"
+                    value={form.minimumAmount}
                     onChange={updateField}
                   />
-                  <label className="promotion-create-field promotion-create-field--wide">
-                    <span>Produits concernes</span>
-                    <textarea
-                      name="products"
-                      value={form.products}
-                      onChange={updateField}
-                    />
-                  </label>
+                  <TextField
+                    label="Limite d'utilisation"
+                    name="maxUses"
+                    type="number"
+                    value={form.maxUses}
+                    onChange={updateField}
+                  />
+                  <TextField
+                    label="Date de debut"
+                    name="startDate"
+                    type="date"
+                    value={form.startDate}
+                    onChange={updateField}
+                  />
+                  <TextField
+                    label="Date de fin"
+                    name="endDate"
+                    type="date"
+                    value={form.endDate}
+                    onChange={updateField}
+                  />
                 </div>
               </section>
             </div>

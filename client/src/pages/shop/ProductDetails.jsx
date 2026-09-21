@@ -20,16 +20,9 @@ import ProductReviews from '../../components/product/ProductReviews.jsx'
 
 import { useCart } from '../../context/CartContext.jsx'
 import { useWishlist } from '../../context/WishlistContext.jsx'
+import { useStorefrontSettings } from '../../context/StorefrontSettingsContext.jsx'
 
 import productService from '../../services/productService.js'
-import { products } from './catalogData.js'
-
-const defaultColors = [
-  { name: 'Noir', value: '#111111' },
-  { name: 'Beige', value: '#d8cdbd' },
-  { name: 'Kaki', value: '#6f725c' },
-  { name: 'Gris', value: '#8b8b88' },
-]
 
 const variantColorValues = {
   Noir: '#111111',
@@ -46,10 +39,6 @@ function formatPrice(value) {
 }
 
 function normalizeListingProduct(databaseProduct) {
-  const localProduct = products.find(
-    (item) => item.id === databaseProduct.slug,
-  )
-
   const priceValue = Number(databaseProduct.price || 0)
 
   const oldPriceValue =
@@ -66,8 +55,6 @@ function normalizeListingProduct(databaseProduct) {
       : undefined
 
   return {
-    ...localProduct,
-
     id: databaseProduct.slug,
     slug: databaseProduct.slug,
     databaseId: Number(databaseProduct.id),
@@ -77,17 +64,13 @@ function normalizeListingProduct(databaseProduct) {
     description:
       databaseProduct.short_description ||
       databaseProduct.description ||
-      localProduct?.description ||
       '',
 
     image:
-      databaseProduct.image_url ||
-      localProduct?.image ||
-      '',
+      databaseProduct.image_url || '',
 
     imageAlt:
       databaseProduct.image_alt ||
-      localProduct?.imageAlt ||
       databaseProduct.name ||
       'Produit NOVA',
 
@@ -112,22 +95,19 @@ function normalizeListingProduct(databaseProduct) {
     categorySlug: databaseProduct.category_slug || '',
 
     department:
-      databaseProduct.category_name ||
-      localProduct?.department ||
-      '',
+      databaseProduct.category_name || '',
 
     group:
-      localProduct?.group ||
-      databaseProduct.category_name ||
-      '',
+      databaseProduct.category_name || '',
 
-    isNew: localProduct?.isNew ?? false,
-    rating: localProduct?.rating || 0,
-    reviews: localProduct?.reviews || 0,
+    isNew: Boolean(databaseProduct.featured),
+    rating: 0,
+    reviews: 0,
   }
 }
 
 function ProductDetails() {
+  const { settings } = useStorefrontSettings()
   const { slug } = useParams()
   const navigate = useNavigate()
 
@@ -143,10 +123,6 @@ function ProductDetails() {
   const [productError, setProductError] = useState('')
   const [databaseSimilarProducts, setDatabaseSimilarProducts] =
     useState([])
-
-  const localProduct = useMemo(() => {
-    return products.find((item) => item.id === slug)
-  }, [slug])
 
   useEffect(() => {
     let active = true
@@ -193,26 +169,6 @@ function ProductDetails() {
   ========================================================= */
 
   const product = useMemo(() => {
-    if (!databaseProduct && localProduct) {
-      const fallbackStock = Number(localProduct.stock || 20)
-
-      return {
-        ...localProduct,
-        slug: localProduct.id,
-        databaseId: null,
-        fullDescription:
-          localProduct.fullDescription ||
-          localProduct.description ||
-          '',
-        stock: fallbackStock,
-        availability:
-          fallbackStock > 0 ? 'En stock' : 'Rupture de stock',
-        reference: `NOVA-${localProduct.id}`,
-        variants: [],
-        images: [],
-      }
-    }
-
     if (!databaseProduct) {
       return null
     }
@@ -248,11 +204,7 @@ function ProductDetails() {
 
     const primaryDatabaseImage = databaseImages[0]
 
-    const fallbackProduct = localProduct || {}
-
     return {
-      ...fallbackProduct,
-
       id: databaseProduct.slug,
       slug: databaseProduct.slug,
       databaseId: Number(databaseProduct.id),
@@ -262,23 +214,18 @@ function ProductDetails() {
       description:
         databaseProduct.short_description ||
         databaseProduct.description ||
-        fallbackProduct.description ||
         '',
 
       fullDescription:
         databaseProduct.description ||
         databaseProduct.short_description ||
-        fallbackProduct.description ||
         '',
 
       image:
-        primaryDatabaseImage?.image_url ||
-        fallbackProduct.image ||
-        '',
+        primaryDatabaseImage?.image_url || '',
 
       imageAlt:
         primaryDatabaseImage?.alt_text ||
-        fallbackProduct.imageAlt ||
         databaseProduct.name ||
         'Produit NOVA',
 
@@ -309,18 +256,14 @@ function ProductDetails() {
       categorySlug: databaseProduct.category_slug || '',
 
       department:
-        databaseProduct.category_name ||
-        fallbackProduct.department ||
-        '',
+        databaseProduct.category_name || '',
 
       group:
-        fallbackProduct.group ||
-        databaseProduct.category_name ||
-        '',
+        databaseProduct.category_name || '',
 
-      isNew: fallbackProduct.isNew ?? false,
-      rating: fallbackProduct.rating || 0,
-      reviews: fallbackProduct.reviews || 0,
+      isNew: Boolean(databaseProduct.featured),
+      rating: 0,
+      reviews: 0,
 
       reference:
         databaseProduct.sku ||
@@ -332,7 +275,7 @@ function ProductDetails() {
 
       images: databaseImages,
     }
-  }, [localProduct, databaseProduct])
+  }, [databaseProduct])
 
   /* =========================================================
      GALLERY
@@ -404,27 +347,8 @@ function ProductDetails() {
   }, [databaseProduct])
 
   const similarProducts = useMemo(() => {
-    if (databaseSimilarProducts.length > 0) {
-      return databaseSimilarProducts
-    }
-
-    if (!product) {
-      return []
-    }
-
-    return products
-      .filter((item) => {
-        if (item.id === product.id || item.id === product.slug) {
-          return false
-        }
-
-        return (
-          item.department === product.department ||
-          item.group === product.group
-        )
-      })
-      .slice(0, 4)
-  }, [databaseSimilarProducts, product])
+    return databaseSimilarProducts
+  }, [databaseSimilarProducts])
 
   /* =========================================================
      STATES
@@ -478,7 +402,7 @@ function ProductDetails() {
     ]
 
     if (uniqueColors.length === 0) {
-      return product?.colors || defaultColors
+      return []
     }
 
     return uniqueColors.map((color) => ({
@@ -487,7 +411,7 @@ function ProductDetails() {
         variantColorValues[color] ||
         '#8b8b88',
     }))
-  }, [variants, product])
+  }, [variants])
 
   /* =========================================================
      SIZES FROM DATABASE
@@ -506,27 +430,11 @@ function ProductDetails() {
       return databaseSizes
     }
 
-    if (product?.sizes?.length) {
-      return product.sizes
-    }
-
-    if (product?.department === 'Accessoires') {
-      return ['Unique']
-    }
-
-    return ['XS', 'S', 'M', 'L', 'XL']
-  }, [variants, product])
+    return []
+  }, [variants])
 
   const sizes = useMemo(() => {
     return sizeNames.map((size) => {
-      if (variants.length === 0) {
-        return {
-          name: size,
-          available:
-            !(product?.unavailableSizes || []).includes(size),
-        }
-      }
-
       const matchingVariants = variants.filter(
         (variant) =>
           variant.size === size &&
@@ -550,7 +458,6 @@ function ProductDetails() {
     sizeNames,
     variants,
     selectedColor,
-    product,
   ])
 
   /* =========================================================
@@ -564,9 +471,18 @@ function ProductDetails() {
 
     return (
       variants.find(
-        (variant) =>
-          variant.size === selectedSize &&
-          variant.color === selectedColor,
+        (variant) => {
+          const variantSize =
+            variant.size || ''
+
+          const variantColor =
+            variant.color || ''
+
+          return (
+            variantSize === selectedSize &&
+            variantColor === selectedColor
+          )
+        },
       ) || null
     )
   }, [
@@ -629,7 +545,6 @@ function ProductDetails() {
 
     const firstColor =
       firstDatabaseColor ||
-      (product.colors || defaultColors)[0]?.name ||
       ''
 
     setSelectedColor(firstColor)
@@ -654,16 +569,7 @@ function ProductDetails() {
         variants[0]?.size ||
         ''
     } else {
-      firstSize =
-        (product.sizes || []).find(
-          (size) =>
-            !(product.unavailableSizes || []).includes(size),
-        ) ||
-        (
-          product.department === 'Accessoires'
-            ? 'Unique'
-            : 'M'
-        )
+      firstSize = ''
     }
 
     setSelectedSize(firstSize)
@@ -837,7 +743,10 @@ function ProductDetails() {
         size.name === selectedSize,
     )
 
-    if (!selectedSizeOption?.available) {
+    if (
+      sizes.length > 0 &&
+      !selectedSizeOption?.available
+    ) {
       setProductNotice(
         'Sélectionnez une taille disponible avant d’ajouter ce produit.',
       )
@@ -1040,24 +949,36 @@ function ProductDetails() {
 
             <div className="product-main-image">
 
-              <img
-                src={
-                  mainImage ||
-                  product.image
-                }
-                alt={
-                  product.imageAlt ||
-                  product.name
-                }
-                style={
-                  product.imagePosition
-                    ? {
-                        objectPosition:
-                          product.imagePosition,
-                      }
-                    : undefined
-                }
-              />
+              {mainImage || product.image ? (
+                <img
+                  src={
+                    mainImage ||
+                    product.image
+                  }
+                  alt={
+                    product.imageAlt ||
+                    product.name
+                  }
+                  style={
+                    product.imagePosition
+                      ? {
+                          objectPosition:
+                            product.imagePosition,
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <div
+                  className="product-image-placeholder product-image-placeholder--large"
+                  aria-label={
+                    product.imageAlt ||
+                    product.name
+                  }
+                >
+                  NOVA
+                </div>
+              )}
 
             </div>
 
@@ -1188,6 +1109,7 @@ function ProductDetails() {
                 COLORS
             ========================= */}
 
+            {colors.length > 0 ? (
             <div className="product-option-block">
 
               <div className="product-option-title">
@@ -1225,11 +1147,13 @@ function ProductDetails() {
               </div>
 
             </div>
+            ) : null}
 
             {/* =========================
                 SIZES
             ========================= */}
 
+            {sizes.length > 0 ? (
             <div className="product-option-block">
 
               <div className="product-size-header">
@@ -1282,6 +1206,7 @@ function ProductDetails() {
               </div>
 
             </div>
+            ) : null}
 
             {productNotice ? (
               <p
@@ -1302,7 +1227,7 @@ function ProductDetails() {
 
               {currentAvailability}
 
-              {currentStock > 0 ? (
+              {settings.stockDisplay && currentStock > 0 ? (
                 <span>
                   {' '}
                   ({currentStock} disponible

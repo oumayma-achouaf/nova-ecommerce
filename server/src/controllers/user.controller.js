@@ -35,6 +35,171 @@ const getUserById = async (userId) => {
   return rows[0] || null
 }
 
+function parseNumericId(value) {
+  const id =
+    Number(value)
+
+  return Number.isInteger(id) &&
+    id > 0
+    ? id
+    : null
+}
+
+async function getAdminCustomerByIdRow(
+  customerId,
+) {
+  const [rows] = await db.execute(
+    `
+    SELECT
+      u.id,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.phone,
+      u.city,
+      u.country,
+      u.avatar_url,
+      u.newsletter_opt_in,
+      u.role,
+      u.is_active,
+      u.created_at,
+      u.updated_at,
+
+      COALESCE(os.orders_count, 0) AS orders_count,
+      COALESCE(os.total_spent, 0) AS total_spent,
+      os.last_order_at,
+
+      (
+        SELECT a.city
+        FROM addresses a
+        WHERE a.user_id = u.id
+        ORDER BY a.is_default DESC, a.id ASC
+        LIMIT 1
+      ) AS address_city,
+
+      (
+        SELECT a.country
+        FROM addresses a
+        WHERE a.user_id = u.id
+        ORDER BY a.is_default DESC, a.id ASC
+        LIMIT 1
+      ) AS address_country,
+
+      (
+        SELECT a.phone
+        FROM addresses a
+        WHERE a.user_id = u.id
+        ORDER BY a.is_default DESC, a.id ASC
+        LIMIT 1
+      ) AS address_phone
+
+    FROM users u
+
+    LEFT JOIN (
+      SELECT
+        user_id,
+        COUNT(*) AS orders_count,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN status = 'cancelled' THEN 0
+              ELSE total
+            END
+          ),
+          0
+        ) AS total_spent,
+        MAX(created_at) AS last_order_at
+      FROM orders
+      GROUP BY user_id
+    ) os
+      ON os.user_id = u.id
+
+    WHERE u.id = ?
+      AND u.role = 'customer'
+
+    LIMIT 1
+    `,
+    [customerId],
+  )
+
+  return rows[0] || null
+}
+
+async function getCustomerRecentOrders(
+  customerId,
+) {
+  const [orders] = await db.execute(
+    `
+    SELECT
+      o.id,
+      o.order_number,
+      o.status,
+      o.subtotal,
+      o.shipping_cost,
+      o.discount,
+      o.total,
+      o.payment_method,
+      o.payment_status,
+      o.shipping_address,
+      o.notes,
+      o.created_at,
+      o.updated_at,
+      COUNT(oi.id) AS item_lines,
+      COALESCE(SUM(oi.quantity), 0) AS item_quantity
+    FROM orders o
+    LEFT JOIN order_items oi
+      ON oi.order_id = o.id
+    WHERE o.user_id = ?
+    GROUP BY
+      o.id,
+      o.order_number,
+      o.status,
+      o.subtotal,
+      o.shipping_cost,
+      o.discount,
+      o.total,
+      o.payment_method,
+      o.payment_status,
+      o.shipping_address,
+      o.notes,
+      o.created_at,
+      o.updated_at
+    ORDER BY o.created_at DESC, o.id DESC
+    `,
+    [customerId],
+  )
+
+  return orders
+}
+
+async function getCustomerAddresses(
+  customerId,
+) {
+  const [addresses] = await db.execute(
+    `
+    SELECT
+      id,
+      label,
+      full_name,
+      address_line1,
+      address_line2,
+      city,
+      postal_code,
+      country,
+      phone,
+      is_default,
+      created_at,
+      updated_at
+    FROM addresses
+    WHERE user_id = ?
+    ORDER BY is_default DESC, id ASC
+    `,
+    [customerId],
+  )
+
+  return addresses
+}
+
 const deleteAvatarFile = (avatarUrl) => {
   if (!avatarUrl) {
     return
@@ -102,6 +267,7 @@ const updateMyProfile = async (
     const {
       first_name,
       last_name,
+      email,
       phone,
       city,
       country,
@@ -128,6 +294,45 @@ const updateMyProfile = async (
       })
     }
 
+    const normalizedEmail =
+      String(email || '').trim().toLowerCase()
+
+    if (
+      normalizedEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        normalizedEmail,
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          'Adresse email invalide.',
+      })
+    }
+
+    if (normalizedEmail) {
+      const [existingEmailRows] =
+        await db.execute(
+          `
+          SELECT id
+          FROM users
+          WHERE email = ?
+            AND id <> ?
+          LIMIT 1
+          `,
+          [
+            normalizedEmail,
+            userId,
+          ],
+        )
+
+      if (existingEmailRows.length > 0) {
+        return res.status(409).json({
+          message:
+            'Cette adresse email est deja utilisee.',
+        })
+      }
+    }
+
     let newsletterOptIn = 0
 
     if (
@@ -145,6 +350,7 @@ const updateMyProfile = async (
       SET
         first_name = ?,
         last_name = ?,
+        email = COALESCE(?, email),
         phone = ?,
         city = ?,
         country = ?,
@@ -154,6 +360,7 @@ const updateMyProfile = async (
       [
         firstName,
         lastName,
+        normalizedEmail || null,
         phone
           ? String(phone).trim()
           : null,
@@ -299,9 +506,227 @@ const deleteMyAvatar = async (
   }
 }
 
+const getAdminCustomers = async (
+  req,
+  res,
+  next,
+) => {
+  try {
+    const [customers] = await db.execute(
+      `
+      SELECT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        u.city,
+        u.country,
+        u.avatar_url,
+        u.newsletter_opt_in,
+        u.role,
+        u.is_active,
+        u.created_at,
+        u.updated_at,
+
+        COALESCE(os.orders_count, 0) AS orders_count,
+        COALESCE(os.total_spent, 0) AS total_spent,
+        os.last_order_at,
+
+        (
+          SELECT a.city
+          FROM addresses a
+          WHERE a.user_id = u.id
+          ORDER BY a.is_default DESC, a.id ASC
+          LIMIT 1
+        ) AS address_city,
+
+        (
+          SELECT a.country
+          FROM addresses a
+          WHERE a.user_id = u.id
+          ORDER BY a.is_default DESC, a.id ASC
+          LIMIT 1
+        ) AS address_country,
+
+        (
+          SELECT a.phone
+          FROM addresses a
+          WHERE a.user_id = u.id
+          ORDER BY a.is_default DESC, a.id ASC
+          LIMIT 1
+        ) AS address_phone
+
+      FROM users u
+
+      LEFT JOIN (
+        SELECT
+          user_id,
+          COUNT(*) AS orders_count,
+          COALESCE(
+            SUM(
+              CASE
+                WHEN status = 'cancelled' THEN 0
+                ELSE total
+              END
+            ),
+            0
+          ) AS total_spent,
+          MAX(created_at) AS last_order_at
+        FROM orders
+        GROUP BY user_id
+      ) os
+        ON os.user_id = u.id
+
+      WHERE u.role = 'customer'
+
+      ORDER BY u.created_at DESC, u.id DESC
+      `,
+    )
+
+    res.json({
+      customers,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const getAdminCustomerById = async (
+  req,
+  res,
+  next,
+) => {
+  try {
+    const customerId =
+      parseNumericId(req.params.id)
+
+    if (!customerId) {
+      return res.status(400).json({
+        message:
+          'Identifiant client invalide.',
+      })
+    }
+
+    const customer =
+      await getAdminCustomerByIdRow(
+        customerId,
+      )
+
+    if (!customer) {
+      return res.status(404).json({
+        message:
+          'Client introuvable.',
+      })
+    }
+
+    const [
+      recentOrders,
+      addresses,
+    ] = await Promise.all([
+      getCustomerRecentOrders(
+        customerId,
+      ),
+      getCustomerAddresses(
+        customerId,
+      ),
+    ])
+
+    res.json({
+      customer: {
+        ...customer,
+        recent_orders:
+          recentOrders,
+        addresses,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+const updateAdminCustomerStatus = async (
+  req,
+  res,
+  next,
+) => {
+  try {
+    const customerId =
+      parseNumericId(req.params.id)
+
+    if (!customerId) {
+      return res.status(400).json({
+        message:
+          'Identifiant client invalide.',
+      })
+    }
+
+    const status =
+      String(
+        req.body?.status || '',
+      )
+        .trim()
+        .toLowerCase()
+
+    if (
+      ![
+        'active',
+        'inactive',
+        'blocked',
+      ].includes(status)
+    ) {
+      return res.status(400).json({
+        message:
+          'Statut client invalide.',
+      })
+    }
+
+    const customer =
+      await getAdminCustomerByIdRow(
+        customerId,
+      )
+
+    if (!customer) {
+      return res.status(404).json({
+        message:
+          'Client introuvable.',
+      })
+    }
+
+    await db.execute(
+      `
+      UPDATE users
+      SET is_active = ?
+      WHERE id = ?
+        AND role = 'customer'
+      `,
+      [
+        status === 'active' ? 1 : 0,
+        customerId,
+      ],
+    )
+
+    const updatedCustomer =
+      await getAdminCustomerByIdRow(
+        customerId,
+      )
+
+    res.json({
+      message:
+        'Statut client mis a jour.',
+      customer: updatedCustomer,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getMyProfile,
   updateMyProfile,
   uploadMyAvatar,
   deleteMyAvatar,
+  getAdminCustomers,
+  getAdminCustomerById,
+  updateAdminCustomerStatus,
 }

@@ -15,8 +15,6 @@ import {
 
 import AccountSidebar from '../../components/layout/AccountSidebar.jsx'
 
-import { products as catalogProducts } from '../shop/catalogData.js'
-
 import orderService from '../../services/orderService.js'
 
 
@@ -119,17 +117,6 @@ const formatPrice = (value) => {
       maximumFractionDigits: 2,
     },
   )} DH`
-}
-
-
-const getCatalogProduct = (slug) => {
-  if (!slug) {
-    return null
-  }
-
-  return catalogProducts.find(
-    (product) => product.id === slug,
-  )
 }
 
 
@@ -300,9 +287,6 @@ function Orders() {
 
         const displayProducts =
           items.map((item) => {
-            const catalogProduct =
-              getCatalogProduct(item.slug)
-
             return {
               id:
                 item.id ||
@@ -310,15 +294,11 @@ function Orders() {
 
               name:
                 item.product_name ||
-                catalogProduct?.name ||
                 'Produit',
 
-              image:
-                catalogProduct?.image ||
-                null,
+              image: null,
 
               imageAlt:
-                catalogProduct?.imageAlt ||
                 item.product_name ||
                 'Produit NOVA',
             }

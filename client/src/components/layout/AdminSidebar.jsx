@@ -11,9 +11,14 @@ import {
   LogOut,
 } from 'lucide-react'
 
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
 import useAuth from '../../hooks/useAuth.js'
+import {
+  getAdminAnalytics,
+  getMessageConversations,
+} from '../../services/adminService.js'
 
 const menuItems = [
   {
@@ -26,7 +31,7 @@ const menuItems = [
     label: 'Commandes',
     icon: ShoppingBag,
     to: '/admin/commandes',
-    badge: 12,
+    badgeKey: 'orders',
   },
   {
     label: 'Produits',
@@ -57,7 +62,7 @@ const menuItems = [
     label: 'Messages',
     icon: MessageSquare,
     to: '/admin/messages',
-    badge: 3,
+    badgeKey: 'messages',
   },
   {
     label: 'Paramètres',
@@ -69,6 +74,51 @@ const menuItems = [
 export default function AdminSidebar() {
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const [badges, setBadges] = useState({
+    orders: 0,
+    messages: 0,
+  })
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadBadges() {
+      try {
+        const [
+          analytics,
+          messages,
+        ] = await Promise.all([
+          getAdminAnalytics('current_month'),
+          getMessageConversations(),
+        ])
+
+        const pendingOrders =
+          (analytics.statusChart || []).find(
+            (item) => item.status === 'pending',
+          )?.value || 0
+
+        if (isActive) {
+          setBadges({
+            orders: pendingOrders,
+            messages: Number(messages.stats?.unread || 0),
+          })
+        }
+      } catch {
+        if (isActive) {
+          setBadges({
+            orders: 0,
+            messages: 0,
+          })
+        }
+      }
+    }
+
+    loadBadges()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -91,8 +141,13 @@ export default function AdminSidebar() {
             icon: Icon,
             to,
             badge,
+            badgeKey,
             end,
-          }) => (
+          }) => {
+            const resolvedBadge =
+              badge ?? badges[badgeKey]
+
+            return (
             <NavLink
               key={label}
               to={to}
@@ -115,13 +170,14 @@ export default function AdminSidebar() {
                 <span>{label}</span>
               </div>
 
-              {badge ? (
+              {resolvedBadge ? (
                 <span className="admin-sidebar__badge">
-                  {badge}
+                  {resolvedBadge}
                 </span>
               ) : null}
             </NavLink>
-          ),
+            )
+          },
         )}
       </nav>
 

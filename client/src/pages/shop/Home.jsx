@@ -13,15 +13,11 @@ import heroImage from '../../assets/images/nova-home-hero.jpg'
 import categoryMen from '../../assets/images/nova-category-men.jpg'
 import categoryWomen from '../../assets/images/nova-category-women.jpg'
 import categoryAccessories from '../../assets/images/nova-category-accessories.jpg'
-import productSneakers from '../../assets/images/nova-product-sneakers.jpg'
-import productBag from '../../assets/images/nova-product-bag.jpg'
-import productSweater from '../../assets/images/nova-product-sweater.jpg'
-import productWatch from '../../assets/images/nova-product-watch.jpg'
 
 const categories = [
   {
     title: 'Homme',
-    subtitle: 'Allure et modernité',
+    subtitle: 'Allure et modernite',
     image: categoryMen,
     imageAlt:
       'Homme portant une veste noire et des lunettes de soleil',
@@ -29,14 +25,14 @@ const categories = [
   },
   {
     title: 'Femme',
-    subtitle: 'Élégance naturelle',
+    subtitle: 'Elegance naturelle',
     image: categoryWomen,
     imageAlt: 'Femme portant un blazer beige',
     link: '/femme',
   },
   {
     title: 'Accessoires',
-    subtitle: 'Les détails qui font la différence',
+    subtitle: 'Les details qui font la difference',
     image: categoryAccessories,
     imageAlt:
       'Sac noir, montre et lunettes sur pierre claire',
@@ -51,50 +47,14 @@ const services = [
     icon: Truck,
   },
   {
-    title: 'Paiement sécurisé',
-    subtitle: '100% fiable et crypté',
+    title: 'Paiement securise',
+    subtitle: '100% fiable et crypte',
     icon: LockKeyhole,
   },
   {
     title: 'Retours faciles',
     subtitle: 'Sous 14 jours',
     icon: RefreshCw,
-  },
-]
-
-const bestSellerPresentation = [
-  {
-    id: 'baskets-nova',
-    description: 'Un style qui vous suit partout',
-    image: productSneakers,
-    imageAlt: 'Baskets blanches Nova Premium',
-    rating: 5,
-    reviews: 124,
-  },
-  {
-    id: 'sac-elise',
-    description: "L'élégance au quotidien",
-    image: productBag,
-    imageAlt: 'Sac Élise noir avec fermoir doré',
-    rating: 5,
-    reviews: 89,
-  },
-  {
-    id: 'pull-cachemire',
-    description: 'Confort et raffinement',
-    image: productSweater,
-    imageAlt: 'Pull en cachemire vert olive',
-    rating: 5,
-    reviews: 102,
-  },
-  {
-    id: 'montre-horizon',
-    description: "L'essentiel, avec caractère",
-    image: productWatch,
-    imageAlt:
-      'Montre Horizon avec cadran vert et bracelet brun',
-    rating: 5,
-    reviews: 76,
   },
 ]
 
@@ -150,18 +110,30 @@ function Home() {
   }, [])
 
   const bestSellers = useMemo(() => {
-    return bestSellerPresentation
-      .map((presentation) => {
-        const databaseProduct =
-          databaseProducts.find(
-            (product) =>
-              product.slug === presentation.id,
+    return databaseProducts
+      .filter(
+        (product) =>
+          product.status === 'active' &&
+          Number(product.stock || 0) > 0,
+      )
+      .sort((first, second) => {
+        if (
+          Boolean(second.featured) !==
+          Boolean(first.featured)
+        ) {
+          return (
+            Number(Boolean(second.featured)) -
+            Number(Boolean(first.featured))
           )
-
-        if (!databaseProduct) {
-          return null
         }
 
+        return (
+          new Date(second.created_at || 0).getTime() -
+          new Date(first.created_at || 0).getTime()
+        )
+      })
+      .slice(0, 4)
+      .map((databaseProduct) => {
         const priceValue = Number(
           databaseProduct.price,
         )
@@ -183,11 +155,26 @@ function Home() {
             : undefined
 
         return {
-          ...presentation,
+          id: databaseProduct.slug,
+
+          slug: databaseProduct.slug,
 
           databaseId: databaseProduct.id,
 
           name: databaseProduct.name,
+
+          description:
+            databaseProduct.short_description ||
+            databaseProduct.description ||
+            '',
+
+          image:
+            databaseProduct.image_url || '',
+
+          imageAlt:
+            databaseProduct.image_alt ||
+            databaseProduct.name ||
+            'Produit NOVA',
 
           priceValue,
 
@@ -224,9 +211,16 @@ function Home() {
 
           categorySlug:
             databaseProduct.category_slug,
+
+          isNew: Boolean(
+            databaseProduct.featured,
+          ),
+
+          rating: 0,
+
+          reviews: 0,
         }
       })
-      .filter(Boolean)
   }, [databaseProducts])
 
   return (
@@ -238,13 +232,13 @@ function Home() {
         <img
           className="hero-photo"
           src={heroImage}
-          alt="Nouvelle collection portée par un couple en tenue élégante"
+          alt="Nouvelle collection portee par un couple en tenue elegante"
         />
 
         <div className="nova-container hero-inner">
           <div className="hero-copy">
             <p className="hero-eyebrow">
-              STYLE · QUALITÉ · PLUS LOIN ENSEMBLE
+              STYLE - QUALITE - PLUS LOIN ENSEMBLE
             </p>
 
             <h1 id="home-hero-title">
@@ -254,16 +248,16 @@ function Home() {
             </h1>
 
             <p className="hero-description">
-              Des pièces intemporelles pour une vie moderne.
+              Des pieces intemporelles pour une vie moderne.
               <br />
-              Élégance, confort et caractère, en toute saison.
+              Elegance, confort et caractere, en toute saison.
             </p>
 
             <Link
               className="hero-cta"
               to="/nouveautes"
             >
-              Découvrir la collection
+              Decouvrir la collection
               <ArrowRight
                 size={16}
                 strokeWidth={1.6}
@@ -284,7 +278,7 @@ function Home() {
 
       <section
         className="category-strip nova-container"
-        aria-label="Catégories"
+        aria-label="Categories"
       >
         {categories.map((category) => (
           <article
@@ -301,7 +295,7 @@ function Home() {
               <p>{category.subtitle}</p>
 
               <Link to={category.link}>
-                Découvrir
+                Decouvrir
                 <ArrowRight
                   size={13}
                   strokeWidth={1.55}
@@ -365,7 +359,7 @@ function Home() {
           <p>Chargement des produits...</p>
         ) : error ? (
           <p role="alert">{error}</p>
-        ) : (
+        ) : bestSellers.length > 0 ? (
           <div className="products-grid">
             {bestSellers.map((product) => (
               <ProductCard
@@ -374,6 +368,8 @@ function Home() {
               />
             ))}
           </div>
+        ) : (
+          <p>Aucun produit actif a afficher pour le moment.</p>
         )}
       </section>
     </main>

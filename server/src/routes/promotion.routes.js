@@ -2,6 +2,7 @@ const express = require('express')
 
 const {
   getPromotions,
+  getPromotionById,
   createPromotion,
   updatePromotion,
   deletePromotion,
@@ -27,6 +28,13 @@ router.get(
   getPromotions,
 )
 
+router.get(
+  '/:id',
+  authenticate,
+  requireAdmin,
+  getPromotionById,
+)
+
 router.post(
   '/',
   authenticate,
@@ -35,6 +43,13 @@ router.post(
 )
 
 router.put(
+  '/:id',
+  authenticate,
+  requireAdmin,
+  updatePromotion,
+)
+
+router.patch(
   '/:id',
   authenticate,
   requireAdmin,

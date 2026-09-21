@@ -20,10 +20,12 @@ import CheckoutSummary from '../../components/checkout/CheckoutSummary.jsx'
 import {
   useCart,
 } from '../../context/CartContext.jsx'
+import { useStorefrontSettings } from '../../context/StorefrontSettingsContext.jsx'
 
 import orderService from '../../services/orderService.js'
 
 function Checkout() {
+  const { settings } = useStorefrontSettings()
   const {
     cartItems,
     subtotal,
@@ -95,13 +97,18 @@ function Checkout() {
     setIsSubmitting,
   ] = useState(false)
 
+  const thresholdFreeShipping =
+    delivery === 'standard' &&
+    Number(settings.shipping.freeFrom) > 0 &&
+    subtotal >= Number(settings.shipping.freeFrom)
+
   const baseDeliveryFee =
     delivery === 'express'
-      ? 50
-      : 0
+      ? Number(settings.shipping.express)
+      : Number(settings.shipping.standard)
 
   const deliveryFee =
-    freeShipping
+    freeShipping || thresholdFreeShipping
       ? 0
       : baseDeliveryFee
 
@@ -382,6 +389,13 @@ function Checkout() {
         return
       }
 
+      if (!settings.paymentMethods[paymentMethod]?.available) {
+        setPendingMessage(
+          'Ce moyen de paiement est indisponible. Veuillez choisir un moyen actif.',
+        )
+        return
+      }
+
       /*
        * =====================================================
        * CARD — VALIDATION FRONTEND ONLY
@@ -619,6 +633,12 @@ function Checkout() {
               onDeliveryChange={
                 setDelivery
               }
+              shipping={settings.shipping}
+              standardIsFree={
+                freeShipping ||
+                (Number(settings.shipping.freeFrom) > 0 &&
+                  subtotal >= Number(settings.shipping.freeFrom))
+              }
             />
 
             <PaymentMethod
@@ -641,6 +661,7 @@ function Checkout() {
               paymentErrors={
                 paymentErrors
               }
+              availability={settings.paymentMethods}
             />
 
             <Link
@@ -688,8 +709,10 @@ function Checkout() {
             }
 
             freeShipping={
-              freeShipping
+              freeShipping || thresholdFreeShipping
             }
+
+            freeShippingThreshold={settings.shipping.freeFrom}
 
             pendingMessage={
               isSubmitting

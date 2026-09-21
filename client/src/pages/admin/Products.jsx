@@ -14,14 +14,16 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import {
+  deleteProduct as deleteProductRequest,
+  getAdminApiErrorMessages,
   getProducts,
-  saveProducts,
+  upsertProduct,
 } from '../../services/adminService.js'
 
 const productStatuses = [
@@ -58,7 +60,7 @@ function ProductStatCard({
         </div>
         <div className="products-stat-card__bottom">
           <span>{label}</span>
-          {growth ? <small>vs mois dernier</small> : null}
+          {growth ? <small>base de donnees</small> : null}
         </div>
       </div>
     </div>
@@ -83,7 +85,9 @@ function ProductImage({ src, alt, fallback }) {
 
 export default function Products() {
   const navigate = useNavigate()
-  const [products, setProducts] = useState(() => getProducts())
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -94,8 +98,42 @@ export default function Products() {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [notice, setNotice] = useState('')
 
+  useEffect(() => {
+    let isActive = true
+
+    async function loadProducts() {
+      setLoading(true)
+      setApiError('')
+
+      try {
+        const nextProducts = await getProducts()
+
+        if (isActive) {
+          setProducts(nextProducts)
+        }
+      } catch (error) {
+        if (isActive) {
+          setApiError(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadProducts()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
   const productCategories = useMemo(
-    () => Array.from(new Set(products.map((product) => product.category))),
+    () =>
+      Array.from(
+        new Set(products.map((product) => product.category).filter(Boolean)),
+      ),
     [products],
   )
 
@@ -154,11 +192,6 @@ export default function Products() {
     statusFilter !== 'all' ||
     sortBy !== 'recent'
 
-  const updateProducts = (nextProducts) => {
-    setProducts(nextProducts)
-    saveProducts(nextProducts)
-  }
-
   const resetToFirstPage = (setter) => (event) => {
     setter(event.target.value)
     setPage(1)
@@ -199,38 +232,73 @@ export default function Products() {
     setPage(1)
   }
 
-  const deleteProduct = (product) => {
-    if (!window.confirm(`Supprimer ${product.name} de cette session ?`)) {
+  const deleteProduct = async (product) => {
+    if (
+      !window.confirm(
+        `Supprimer ${product.name} de la base de donnees ?`,
+      )
+    ) {
       return
     }
 
-    const nextProducts = products.filter((item) => item.id !== product.id)
-    updateProducts(nextProducts)
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => id !== product.id),
-    )
-    setOpenMenuId(null)
-    setNotice(`${product.name} supprime localement.`)
+    setApiError('')
+
+    try {
+      const result =
+        await deleteProductRequest(product.id)
+
+      if (result.action === 'archived' && result.product) {
+        setProducts((currentProducts) =>
+          currentProducts.map((item) =>
+            item.id === product.id ? result.product : item,
+          ),
+        )
+        setNotice(`${product.name} archive pour preserver l historique.`)
+      } else {
+        setProducts((currentProducts) =>
+          currentProducts.filter((item) => item.id !== product.id),
+        )
+        setSelectedIds((currentIds) =>
+          currentIds.filter((id) => id !== product.id),
+        )
+        setNotice(`${product.name} supprime en base.`)
+      }
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
-  const toggleVisibility = (product) => {
-    const nextProducts = products.map((item) =>
-      item.id === product.id
-        ? {
-            ...item,
-            visibility:
-              item.visibility === 'hidden' ? 'visible' : 'hidden',
-          }
-        : item,
-    )
+  const toggleVisibility = async (product) => {
+    const nextVisibility =
+      product.visibility === 'hidden' ? 'visible' : 'hidden'
 
-    updateProducts(nextProducts)
-    setOpenMenuId(null)
-    setNotice(
-      `${product.name} ${
-        product.visibility === 'hidden' ? 'visible' : 'masque'
-      } localement.`,
-    )
+    setApiError('')
+
+    try {
+      const savedProduct = await upsertProduct({
+        ...product,
+        visibility: nextVisibility,
+      })
+
+      setProducts((currentProducts) =>
+        currentProducts.map((item) =>
+          item.id === product.id ? savedProduct : item,
+        ),
+      )
+      setNotice(
+        `${product.name} ${
+          nextVisibility === 'visible' ? 'visible' : 'masque'
+        } en base.`,
+      )
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
   const totalStock = products.filter(
@@ -274,13 +342,23 @@ export default function Products() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des produits depuis la base de donnees...
+            </p>
+          ) : null}
+          {apiError ? (
+            <div className="product-form-alert product-form-alert--error">
+              {apiError}
+            </div>
+          ) : null}
 
           <section className="products-stats">
             <ProductStatCard
               icon={Package}
               value={products.length}
               label="Total produits"
-              growth="+ local"
+              growth="+ DB"
             />
             <ProductStatCard
               icon={Archive}
@@ -507,7 +585,9 @@ export default function Products() {
                   {visibleProducts.length === 0 ? (
                     <tr>
                       <td className="products-table__empty" colSpan="9">
-                        Aucun produit trouve
+                        {loading
+                          ? 'Chargement des produits...'
+                          : 'Aucun produit trouve'}
                       </td>
                     </tr>
                   ) : null}

@@ -22,10 +22,16 @@ import {
   Truck,
   Wrench,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
+import {
+  getAdminApiErrorMessages,
+  getAdminSettings,
+  resetAdminSettings,
+  saveAdminSettings,
+} from '../../services/adminService.js'
 
 const initialStoreSettings = {
   storeName: 'NOVA',
@@ -33,7 +39,7 @@ const initialStoreSettings = {
   phone: '+212 6 12 34 56 78',
   address: '123 Avenue Mohammed V\nCasablanca, Maroc',
   currency: 'DH (Dirham marocain)',
-  language: 'Français',
+  language: 'Francais',
 }
 
 const initialPreferences = {
@@ -52,22 +58,21 @@ const initialShipping = {
 const supportItems = [
   {
     icon: Cloud,
-    title: 'Dernière sauvegarde',
-    detail: '28 sept. 2024 à 02:30',
-    badge: 'Réussie',
+    title: 'Sauvegarde',
+    detail: 'Sauvegardes gerees cote serveur.',
+    badge: 'Serveur',
   },
   {
     icon: Code2,
-    title: 'Clé API',
-    detail: 'sk_live_••••••••••••••••',
-    badge: 'Active',
+    title: 'Cle API',
+    detail: 'Les secrets ne sont pas exposes dans l admin.',
+    badge: 'Protegee',
     copy: true,
   },
   {
     icon: HelpCircle,
-    title: 'Centre d’aide',
-    detail:
-      'Consultez notre documentation ou contactez notre équipe support.',
+    title: 'Centre d aide',
+    detail: 'Contactez le support NOVA pour les operations sensibles.',
     arrow: true,
   },
 ]
@@ -76,56 +81,64 @@ const securityRows = [
   {
     icon: KeyRound,
     title: 'Changer le mot de passe',
-    detail: 'Choisissez un mot de passe sécurisé.',
+    detail: 'Disponible depuis le profil administrateur.',
   },
   {
     icon: Smartphone,
-    title: 'Authentification à deux facteurs',
-    detail: 'Renforcez la sécurité de votre compte.',
-    badge: 'Désactivée',
+    title: 'Authentification a deux facteurs',
+    detail: 'Configuree depuis les actions de securite du profil.',
   },
   {
     icon: Monitor,
     title: 'Sessions actives',
-    detail: 'Gérez vos sessions sur tous vos appareils.',
-    badge: '2 sessions',
+    detail: 'Les sessions connectees sont gerees par le backend.',
   },
 ]
 
 const paymentRows = [
   {
     icon: CreditCard,
+    key: 'Carte bancaire',
     title: 'Carte bancaire',
     detail: 'Visa, Mastercard, CMI',
   },
   {
+    key: 'PayPal',
     type: 'paypal',
     title: 'PayPal',
-    detail: 'Paiements sécurisés',
+    detail: 'Paiements securises',
   },
   {
     icon: CreditCard,
-    title: 'Paiement à la livraison',
-    detail: 'Règlement à la réception',
+    key: 'Paiement a la livraison',
+    title: 'Paiement a la livraison',
+    detail: 'Reglement a la reception',
   },
 ]
 
-const settingsStorageKey = 'nova_admin_settings'
-
 const initialPaymentState = paymentRows.reduce((state, row) => {
-  state[row.title] = true
+  state[row.key] = true
   return state
 }, {})
 
-function loadStoredSettings() {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem(settingsStorageKey))
-  } catch {
-    return null
+function normalizeSettings(settings = {}) {
+  return {
+    storeSettings: {
+      ...initialStoreSettings,
+      ...(settings.storeSettings || {}),
+    },
+    preferences: {
+      ...initialPreferences,
+      ...(settings.preferences || {}),
+    },
+    shipping: {
+      ...initialShipping,
+      ...(settings.shipping || {}),
+    },
+    paymentMethods: {
+      ...initialPaymentState,
+      ...(settings.paymentMethods || {}),
+    },
   }
 }
 
@@ -168,20 +181,57 @@ function SettingsCardHeader({
 }
 
 export default function Settings() {
-  const [storeSettings, setStoreSettings] = useState(
-    () => loadStoredSettings()?.storeSettings || initialStoreSettings,
-  )
-  const [preferences, setPreferences] = useState(
-    () => loadStoredSettings()?.preferences || initialPreferences,
-  )
-  const [shipping, setShipping] = useState(
-    () => loadStoredSettings()?.shipping || initialShipping,
-  )
-  const [paymentMethods, setPaymentMethods] = useState(
-    () => loadStoredSettings()?.paymentMethods || initialPaymentState,
-  )
+  const [storeSettings, setStoreSettings] = useState(initialStoreSettings)
+  const [preferences, setPreferences] = useState(initialPreferences)
+  const [shipping, setShipping] = useState(initialShipping)
+  const [paymentMethods, setPaymentMethods] = useState(initialPaymentState)
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [feedback, setFeedback] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadSettings() {
+      setLoading(true)
+
+      try {
+        const nextSettings = normalizeSettings(await getAdminSettings())
+
+        if (isActive) {
+          setStoreSettings(nextSettings.storeSettings)
+          setPreferences(nextSettings.preferences)
+          setShipping(nextSettings.shipping)
+          setPaymentMethods(nextSettings.paymentMethods)
+          setFeedback('')
+        }
+      } catch (error) {
+        if (isActive) {
+          setFeedback(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadSettings()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const applySettings = (settings) => {
+    const nextSettings = normalizeSettings(settings)
+
+    setStoreSettings(nextSettings.storeSettings)
+    setPreferences(nextSettings.preferences)
+    setShipping(nextSettings.shipping)
+    setPaymentMethods(nextSettings.paymentMethods)
+  }
 
   const updateStoreSetting = (key, value) => {
     setStoreSettings((currentSettings) => ({
@@ -207,17 +257,27 @@ export default function Settings() {
     setSaved(false)
   }
 
-  const resetSettings = () => {
-    setStoreSettings(initialStoreSettings)
-    setPreferences(initialPreferences)
-    setShipping(initialShipping)
-    setPaymentMethods(initialPaymentState)
-    setSaved(false)
-    setFeedback('Parametres locaux reinitialises.')
-    window.localStorage.removeItem(settingsStorageKey)
+  const resetSettings = async () => {
+    if (isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      const nextSettings = await resetAdminSettings()
+
+      applySettings(nextSettings)
+      setSaved(false)
+      setFeedback('Parametres reinitialises en base.')
+    } catch (error) {
+      setFeedback(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     const shippingValues = Object.values(shipping).map((value) =>
       Number(value),
     )
@@ -238,45 +298,55 @@ export default function Settings() {
       return
     }
 
-    window.localStorage.setItem(
-      settingsStorageKey,
-      JSON.stringify({
+    if (isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      const nextSettings = await saveAdminSettings({
         storeSettings,
         preferences,
         shipping,
         paymentMethods,
-      }),
-    )
-    setSaved(true)
-    setFeedback('Modifications enregistrees localement.')
+      })
+
+      applySettings(nextSettings)
+      setSaved(true)
+      setFeedback('Modifications enregistrees en base.')
+    } catch (error) {
+      setSaved(false)
+      setFeedback(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const openSecurityPanel = (title) => {
-    setFeedback(`Section securite ouverte : ${title}.`)
+    setFeedback(`Action securite disponible depuis le profil : ${title}.`)
   }
 
   const copyApiKey = async () => {
-    const apiKey = 'sk_live_local_nova_demo'
-
     try {
-      await navigator.clipboard.writeText(apiKey)
-      setFeedback('Cle API copiee dans le presse-papiers.')
+      await navigator.clipboard.writeText('NOVA API key managed server-side')
+      setFeedback('Information API copiee dans le presse-papiers.')
     } catch {
-      setFeedback(`Cle API locale : ${apiKey}`)
+      setFeedback('Cle API non exposee dans l admin.')
     }
   }
 
   const openHelpCenter = () => {
-    setFeedback('Centre d aide local ouvert : support@nova.ma.')
+    setFeedback('Support NOVA : contactez l administrateur technique.')
   }
 
-  const togglePaymentMethod = (title) => {
+  const togglePaymentMethod = (row) => {
     setPaymentMethods((currentMethods) => ({
       ...currentMethods,
-      [title]: !currentMethods[title],
+      [row.key]: !currentMethods[row.key],
     }))
     setSaved(false)
-    setFeedback(`Moyen de paiement mis a jour : ${title}.`)
+    setFeedback(`Moyen de paiement mis a jour : ${row.title}.`)
   }
 
   return (
@@ -290,16 +360,19 @@ export default function Settings() {
           <section className="settings-page__breadcrumb">
             <span>Accueil</span>
             <ChevronRight size={14} strokeWidth={1.7} />
-            <strong>Paramètres</strong>
+            <strong>Parametres</strong>
           </section>
 
           <section className="settings-page__heading">
-            <h1>Paramètres</h1>
+            <h1>Parametres</h1>
             <p>
-              Configurez votre boutique, vos préférences et votre
-              sécurité.
+              Configurez votre boutique, vos preferences et votre securite.
             </p>
           </section>
+
+          {loading && !feedback ? (
+            <p className="admin-local-notice">Chargement des parametres...</p>
+          ) : null}
 
           {feedback ? <p className="admin-local-notice">{feedback}</p> : null}
 
@@ -341,7 +414,7 @@ export default function Settings() {
                   </label>
 
                   <label>
-                    <span>Téléphone</span>
+                    <span>Telephone</span>
                     <input
                       value={storeSettings.phone}
                       onChange={(event) =>
@@ -394,7 +467,7 @@ export default function Settings() {
                         )
                       }
                     >
-                      <option>Français</option>
+                      <option>Francais</option>
                       <option>Anglais</option>
                       <option>Arabe</option>
                     </select>
@@ -405,8 +478,8 @@ export default function Settings() {
               <div className="dashboard-card settings-card settings-security-card">
                 <SettingsCardHeader
                   icon={Lock}
-                  title="Sécurité du compte"
-                  subtitle="Sécurisez votre compte administrateur."
+                  title="Securite du compte"
+                  subtitle="Securisez votre compte administrateur."
                 />
 
                 <div className="settings-list">
@@ -443,7 +516,7 @@ export default function Settings() {
                   onClick={() => openSecurityPanel('Mot de passe')}
                 >
                   <Lock size={17} strokeWidth={1.8} />
-                  <span>Mettre à jour le mot de passe</span>
+                  <span>Mettre a jour le mot de passe</span>
                 </button>
               </div>
             </div>
@@ -452,7 +525,7 @@ export default function Settings() {
               <div className="dashboard-card settings-card settings-preferences-card">
                 <SettingsCardHeader
                   icon={SettingsIcon}
-                  title="Préférences générales"
+                  title="Preferences generales"
                   subtitle="Personnalisez le fonctionnement de votre boutique."
                 />
 
@@ -462,9 +535,8 @@ export default function Settings() {
                     <span>
                       <strong>Notifications par email</strong>
                       <em>
-                        Recevoir des notifications sur les
-                        commandes, les clients et les activités
-                        importantes.
+                        Recevoir des notifications sur les commandes,
+                        les clients et les activites importantes.
                       </em>
                     </span>
                     <Toggle
@@ -481,8 +553,7 @@ export default function Settings() {
                     <span>
                       <strong>Mode maintenance</strong>
                       <em>
-                        Mettre temporairement votre boutique hors
-                        ligne.
+                        Mettre temporairement votre boutique hors ligne.
                       </em>
                     </span>
                     <Toggle
@@ -535,7 +606,7 @@ export default function Settings() {
               <div className="dashboard-card settings-card settings-shipping-card">
                 <SettingsCardHeader
                   icon={Truck}
-                  title="Expédition et livraison"
+                  title="Expedition et livraison"
                   subtitle="Configurez vos options de livraison."
                 />
 
@@ -544,7 +615,7 @@ export default function Settings() {
                     <ShieldCheck size={24} strokeWidth={1.8} />
                     <span>
                       <strong>Livraison standard</strong>
-                      <em>2 à 5 jours ouvrés</em>
+                      <em>2 a 5 jours ouvres</em>
                     </span>
                     <label>
                       <input
@@ -564,7 +635,7 @@ export default function Settings() {
                     <ShieldCheck size={24} strokeWidth={1.8} />
                     <span>
                       <strong>Livraison express</strong>
-                      <em>24 à 48 heures</em>
+                      <em>24 a 48 heures</em>
                     </span>
                     <label>
                       <input
@@ -583,7 +654,7 @@ export default function Settings() {
                   <div>
                     <Gift size={24} strokeWidth={1.8} />
                     <span>
-                      <strong>Livraison gratuite dès</strong>
+                      <strong>Livraison gratuite des</strong>
                       <em>Montant minimum de commande</em>
                     </span>
                     <label>
@@ -608,7 +679,7 @@ export default function Settings() {
                 <SettingsCardHeader
                   icon={Database}
                   title="Sauvegarde & support"
-                  subtitle="Gérez vos données et accédez à l’assistance."
+                  subtitle="Gerez vos donnees et accedez a l assistance."
                 />
 
                 <div className="settings-support-list">
@@ -632,7 +703,7 @@ export default function Settings() {
                           <button
                             type="button"
                             onClick={copyApiKey}
-                            aria-label="Copier la clé API"
+                            aria-label="Copier l information API"
                           >
                             <Copy
                               size={18}
@@ -644,7 +715,7 @@ export default function Settings() {
                         {item.arrow ? (
                           <button
                             type="button"
-                            aria-label="Ouvrir le centre d'aide"
+                            aria-label="Ouvrir le centre d aide"
                             onClick={openHelpCenter}
                           >
                             <ChevronRight
@@ -662,28 +733,31 @@ export default function Settings() {
                   type="button"
                   className="settings-dark-button"
                   onClick={saveSettings}
+                  disabled={isSaving}
                 >
                   <Save size={17} strokeWidth={1.8} />
-                  <span>Enregistrer les modifications</span>
+                  <span>
+                    {isSaving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   className="settings-reset-button"
                   onClick={resetSettings}
+                  disabled={isSaving}
                 >
                   <RefreshCcw size={17} strokeWidth={1.8} />
-                  <span>Réinitialiser</span>
+                  <span>Reinitialiser</span>
                 </button>
 
                 <p className="settings-reset-note">
-                  Cette action réinitialisera uniquement les
-                  paramètres de cette page.
+                  Cette action restaure les parametres par defaut en base.
                 </p>
 
                 {saved ? (
                   <p className="settings-save-note">
-                    Modifications enregistrées localement.
+                    Modifications enregistrees en base.
                   </p>
                 ) : null}
               </div>
@@ -692,7 +766,7 @@ export default function Settings() {
                 <SettingsCardHeader
                   icon={CreditCard}
                   title="Paiements"
-                  subtitle="Gérez les moyens de paiement acceptés."
+                  subtitle="Gerez les moyens de paiement acceptes."
                 />
 
                 <div className="settings-payment-list">
@@ -703,8 +777,8 @@ export default function Settings() {
                       <button
                         className="settings-payment-row"
                         type="button"
-                        key={row.title}
-                        onClick={() => togglePaymentMethod(row.title)}
+                        key={row.key}
+                        onClick={() => togglePaymentMethod(row)}
                       >
                         {row.type === 'paypal' ? (
                           <span className="settings-paypal-icon">
@@ -723,7 +797,7 @@ export default function Settings() {
                         </span>
 
                         <small>
-                          {paymentMethods[row.title] ? 'Actif' : 'Inactif'}
+                          {paymentMethods[row.key] ? 'Actif' : 'Inactif'}
                         </small>
                         <ChevronRight
                           size={18}

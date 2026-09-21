@@ -12,9 +12,15 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { upsertProduct } from '../../services/adminService.js'
+import {
+  getAdminApiErrorMessages,
+  getCategories,
+  slugify,
+  uploadAdminImages,
+  upsertProduct,
+} from '../../services/adminService.js'
 
-const categories = [
+const fallbackCategories = [
   'Chaussures',
   'Accessoires',
   'Vetements',
@@ -153,8 +159,58 @@ function ProductForm({
   const navigate = useNavigate()
   const [formState, setFormState] = useState(initialValues)
   const [imagePreviews, setImagePreviews] = useState(initialImages)
+  const [categoryOptions, setCategoryOptions] = useState([])
   const [errors, setErrors] = useState([])
   const [confirmation, setConfirmation] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCategories() {
+      try {
+        const nextCategories = await getCategories()
+
+        if (!isActive) {
+          return
+        }
+
+        setCategoryOptions(nextCategories)
+        setFormState((currentForm) => {
+          if (currentForm.categoryId || nextCategories.length === 0) {
+            return currentForm
+          }
+
+          const matchedCategory = nextCategories.find(
+            (category) =>
+              category.name === currentForm.category ||
+              category.slug === currentForm.categorySlug,
+          )
+
+          if (!matchedCategory) {
+            return currentForm
+          }
+
+          return {
+            ...currentForm,
+            categoryId: matchedCategory.id,
+            category: matchedCategory.name,
+            categorySlug: matchedCategory.slug,
+          }
+        })
+      } catch (error) {
+        if (isActive) {
+          setErrors(getAdminApiErrorMessages(error))
+        }
+      }
+    }
+
+    loadCategories()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   useEffect(
     () => () => {
@@ -167,21 +223,51 @@ function ProductForm({
     [imagePreviews],
   )
 
+  const categoryChoices =
+    categoryOptions.length > 0
+      ? categoryOptions
+      : fallbackCategories.map((category) => ({
+          id: category,
+          name: category,
+          slug: slugify(category),
+        }))
+  const selectedCategory =
+    categoryChoices.find(
+      (category) =>
+        String(category.id) === String(formState.categoryId) ||
+        category.name === formState.category,
+    ) || null
+  const selectedCategoryName =
+    selectedCategory?.name || formState.category
+  const selectedCategoryValue =
+    selectedCategory?.id ?? formState.categoryId ?? formState.category
   const subcategories =
-    subcategoriesByCategory[formState.category] || []
+    subcategoriesByCategory[selectedCategoryName] || []
 
   const updateField = (event) => {
     const { name, value } = event.target
 
     setFormState((currentForm) => ({
       ...currentForm,
-      [name]: value,
-      ...(name === 'category'
-        ? {
-            subcategory:
-              subcategoriesByCategory[value]?.[0] || '',
-          }
-        : {}),
+      ...(name === 'categoryId'
+        ? (() => {
+            const nextCategory = categoryChoices.find(
+              (category) => String(category.id) === String(value),
+            )
+
+            return {
+              categoryId: value,
+              category: nextCategory?.name || value,
+              categorySlug: nextCategory?.slug || slugify(value),
+              subcategory:
+                subcategoriesByCategory[nextCategory?.name]?.[0] ||
+                currentForm.subcategory ||
+                '',
+            }
+          })()
+        : {
+            [name]: value,
+          }),
     }))
     setConfirmation('')
   }
@@ -221,6 +307,7 @@ function ProductForm({
       src: URL.createObjectURL(file),
       name: file.name,
       isObjectUrl: true,
+      file,
     }))
 
     setImagePreviews(nextImages)
@@ -264,7 +351,11 @@ function ProductForm({
     return nextErrors.length === 0
   }
 
-  const submitForm = (action) => {
+  const submitForm = async (action) => {
+    if (isSaving) {
+      return
+    }
+
     const nextForm =
       action === 'publish'
         ? {
@@ -278,29 +369,90 @@ function ProductForm({
       return
     }
 
-    upsertProduct({
-      ...nextForm,
-      id: productId,
-      image:
-        imagePreviews.find((image) => !image.isObjectUrl)?.src ||
-        nextForm.image ||
-        '',
-      fallback: nextForm.fallback || 'shoe',
-    })
+    setIsSaving(true)
+    setErrors([])
 
-    setFormState(nextForm)
-    setConfirmation(
-      action === 'publish'
-        ? 'Produit validé localement et marqué comme publié.'
-        : 'Produit enregistré localement en brouillon.',
-    )
+    try {
+      const existingImages = imagePreviews
+        .filter((image) => !image.isObjectUrl)
+        .map((image, index) => ({
+          image_url: image.image_url || image.src,
+          alt_text: image.alt_text || image.name || nextForm.name,
+          is_primary: index === 0,
+          sort_order: index,
+        }))
+
+      const filesToUpload = imagePreviews
+        .filter((image) => image.isObjectUrl && image.file)
+        .map((image) => image.file)
+
+      const uploadedImages =
+        filesToUpload.length > 0
+          ? await uploadAdminImages(filesToUpload, 'products')
+          : []
+
+      const images = [
+        ...existingImages,
+        ...uploadedImages.map((image, index) => ({
+          image_url: image.image_url,
+          alt_text: image.alt_text || nextForm.name,
+          is_primary: existingImages.length === 0 && index === 0,
+          sort_order: existingImages.length + index,
+        })),
+      ].slice(0, 4)
+
+      const savedProduct = await upsertProduct({
+        ...nextForm,
+        id: productId || nextForm.id,
+        image: images[0]?.image_url || nextForm.image || '',
+        images,
+        fallback: nextForm.fallback || 'shoe',
+      })
+
+      setFormState(savedProduct)
+      setImagePreviews(
+        savedProduct.images.length > 0
+          ? savedProduct.images.map((image, index) => ({
+              id: `${savedProduct.id}-image-${index}`,
+              src: image.image_url,
+              image_url: image.image_url,
+              name: image.alt_text || savedProduct.name,
+              isObjectUrl: false,
+            }))
+          : savedProduct.image
+            ? [
+                {
+                  id: `${savedProduct.id}-image`,
+                  src: savedProduct.image,
+                  image_url: savedProduct.image,
+                  name: savedProduct.name,
+                  isObjectUrl: false,
+                },
+              ]
+            : [],
+      )
+      setConfirmation(
+        action === 'publish'
+          ? 'Produit enregistre en base et marque comme publie.'
+          : 'Produit enregistre en base en brouillon.',
+      )
+
+      if (mode === 'create') {
+        navigate('/admin/produits')
+      }
+    } catch (error) {
+      setConfirmation('')
+      setErrors(getAdminApiErrorMessages(error))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const resetForm = () => {
     setFormState(initialValues)
     setImagePreviews(initialImages)
     setErrors([])
-    setConfirmation('Formulaire réinitialisé localement.')
+    setConfirmation('Formulaire reinitialise.')
   }
 
   return (
@@ -334,6 +486,7 @@ function ProductForm({
             className="product-form-secondary-action"
             type="button"
             onClick={resetForm}
+            disabled={isSaving}
           >
             <RotateCcw size={16} strokeWidth={1.8} />
             <span>Réinitialiser</span>
@@ -343,18 +496,20 @@ function ProductForm({
             className="product-form-secondary-action"
             type="button"
             onClick={() => submitForm('draft')}
+            disabled={isSaving}
           >
             <Save size={16} strokeWidth={1.8} />
-            <span>Enregistrer</span>
+            <span>{isSaving ? 'Enregistrement...' : 'Enregistrer'}</span>
           </button>
 
           <button
             className="product-form-primary-action"
             type="button"
             onClick={() => submitForm('publish')}
+            disabled={isSaving}
           >
             <CheckCircle2 size={16} strokeWidth={1.8} />
-            <span>Publier</span>
+            <span>{isSaving ? 'Publication...' : 'Publier'}</span>
           </button>
         </div>
       </section>
@@ -408,9 +563,12 @@ function ProductForm({
 
               <SelectField
                 label="Catégorie"
-                name="category"
-                value={formState.category}
-                options={categories}
+                name="categoryId"
+                value={String(selectedCategoryValue || '')}
+                options={categoryChoices.map((category) => [
+                  String(category.id),
+                  category.name,
+                ])}
                 onChange={updateField}
               />
 
@@ -489,7 +647,7 @@ function ProductForm({
 
               <div>
                 <h2>Images</h2>
-                <p>Prévisualisation locale uniquement, sans envoi serveur.</p>
+                <p>Les fichiers sont envoyes au serveur avant l'enregistrement.</p>
               </div>
             </div>
 
@@ -497,10 +655,10 @@ function ProductForm({
               <label className="product-form-upload">
                 <UploadCloud size={26} strokeWidth={1.6} />
                 <strong>Ajouter des images</strong>
-                <span>JPG ou PNG, aperçu local jusqu'à 4 fichiers</span>
+                <span>JPG, PNG ou WebP, jusqu'a 4 fichiers</span>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   multiple
                   onChange={handleImagesChange}
                 />
@@ -656,6 +814,7 @@ function ProductForm({
             <button
               type="button"
               onClick={() => navigate('/admin/produits')}
+              disabled={isSaving}
             >
               Annuler
             </button>
@@ -663,8 +822,13 @@ function ProductForm({
             <button
               type="button"
               onClick={() => submitForm('publish')}
+              disabled={isSaving}
             >
-              {mode === 'edit' ? 'Mettre à jour' : 'Créer le produit'}
+              {isSaving
+                ? 'Enregistrement...'
+                : mode === 'edit'
+                  ? 'Mettre à jour'
+                  : 'Créer le produit'}
             </button>
           </div>
         </aside>

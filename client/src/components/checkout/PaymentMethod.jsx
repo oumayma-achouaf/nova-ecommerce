@@ -13,6 +13,7 @@ function PaymentMethod({
   onPaymentDetailsChange,
 
   paymentErrors = {},
+  availability,
 }) {
   const updateField = (
     field,
@@ -94,10 +95,12 @@ function PaymentMethod({
               'card',
             )
           }
+          disabled={!availability.card.available}
         >
           <CreditCard size={20} />
 
           Carte bancaire
+          {!availability.card.available ? ' - Indisponible' : ''}
         </button>
 
         <button
@@ -112,12 +115,14 @@ function PaymentMethod({
               'paypal',
             )
           }
+          disabled={!availability.paypal.available}
         >
           <strong className="paypal-symbol">
             P
           </strong>
 
           PayPal
+          {!availability.paypal.available ? ' - Indisponible' : ''}
         </button>
 
         <button
@@ -132,6 +137,7 @@ function PaymentMethod({
               'cash',
             )
           }
+          disabled={!availability.cash.available}
         >
           <Banknote size={21} />
 
@@ -140,7 +146,7 @@ function PaymentMethod({
       </div>
 
       {paymentMethod ===
-        'card' && (
+        'card' && availability.card.available && (
         <div className="payment-card-form">
           <div className="payment-card-header">
             <div>
@@ -347,7 +353,7 @@ function PaymentMethod({
       )}
 
       {paymentMethod ===
-        'paypal' && (
+        'paypal' && availability.paypal.available && (
         <div className="payment-card-form">
           <div className="payment-card-header">
             <div>

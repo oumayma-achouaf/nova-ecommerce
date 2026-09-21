@@ -14,14 +14,16 @@ import {
   Tag,
   Trash2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import {
+  deleteCategory as deleteCategoryRequest,
+  getAdminApiErrorMessages,
   getCategories,
-  saveCategories,
+  upsertCategory,
 } from '../../services/adminService.js'
 
 function AdminStatCard({ icon: Icon, value, label, growth }) {
@@ -39,7 +41,7 @@ function AdminStatCard({ icon: Icon, value, label, growth }) {
         </div>
         <div className="admin-listing-stat-card__bottom">
           <span>{label}</span>
-          {growth ? <small>session locale</small> : null}
+          {growth ? <small>base de donnees</small> : null}
         </div>
       </div>
     </div>
@@ -68,7 +70,9 @@ function CategoryImage({ category }) {
 
 export default function Categories() {
   const navigate = useNavigate()
-  const [categories, setCategories] = useState(() => getCategories())
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('recent')
@@ -77,6 +81,37 @@ export default function Categories() {
   const [perPage, setPerPage] = useState(8)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCategories() {
+      setLoading(true)
+      setApiError('')
+
+      try {
+        const nextCategories = await getCategories()
+
+        if (isActive) {
+          setCategories(nextCategories)
+        }
+      } catch (error) {
+        if (isActive) {
+          setApiError(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadCategories()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const filteredCategories = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -121,11 +156,6 @@ export default function Categories() {
   const hasActiveFilters =
     searchTerm.trim() || statusFilter !== 'all' || sortBy !== 'recent'
 
-  const updateCategories = (nextCategories) => {
-    setCategories(nextCategories)
-    saveCategories(nextCategories)
-  }
-
   const resetToFirstPage = (setter) => (event) => {
     setter(event.target.value)
     setPage(1)
@@ -165,37 +195,63 @@ export default function Categories() {
     setPage(1)
   }
 
-  const deleteCategory = (category) => {
-    if (!window.confirm(`Supprimer ${category.name} de cette session ?`)) {
+  const deleteCategory = async (category) => {
+    if (
+      !window.confirm(
+        `Supprimer ${category.name} de la base de donnees ?`,
+      )
+    ) {
       return
     }
 
-    updateCategories(
-      categories.filter((currentCategory) => currentCategory.id !== category.id),
-    )
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => id !== category.id),
-    )
-    setOpenMenuId(null)
-    setNotice(`${category.name} supprimee localement.`)
+    setApiError('')
+
+    try {
+      await deleteCategoryRequest(category.id)
+
+      setCategories((currentCategories) =>
+        currentCategories.filter(
+          (currentCategory) => currentCategory.id !== category.id,
+        ),
+      )
+      setSelectedIds((currentIds) =>
+        currentIds.filter((id) => id !== category.id),
+      )
+      setNotice(`${category.name} supprimee en base.`)
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
-  const toggleStatus = (category) => {
+  const toggleStatus = async (category) => {
     const nextStatus =
       category.statusType === 'active' ? 'inactive' : 'active'
-    const nextCategories = categories.map((currentCategory) =>
-      currentCategory.id === category.id
-        ? {
-            ...currentCategory,
-            statusType: nextStatus,
-            status: nextStatus === 'active' ? 'Active' : 'Inactive',
-          }
-        : currentCategory,
-    )
 
-    updateCategories(nextCategories)
-    setOpenMenuId(null)
-    setNotice(`${category.name} mise a jour localement.`)
+    setApiError('')
+
+    try {
+      const savedCategory = await upsertCategory({
+        ...category,
+        statusType: nextStatus,
+      })
+
+      setCategories((currentCategories) =>
+        currentCategories.map((currentCategory) =>
+          currentCategory.id === category.id
+            ? savedCategory
+            : currentCategory,
+        ),
+      )
+      setNotice(`${category.name} mise a jour en base.`)
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
   const inactiveCount = categories.filter(
@@ -236,13 +292,23 @@ export default function Categories() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des categories depuis la base de donnees...
+            </p>
+          ) : null}
+          {apiError ? (
+            <div className="product-form-alert product-form-alert--error">
+              {apiError}
+            </div>
+          ) : null}
 
           <section className="admin-listing-stats">
             <AdminStatCard
               icon={Folder}
               value={categories.length}
               label="Categories"
-              growth="+ local"
+              growth="+ DB"
             />
             <AdminStatCard
               icon={Package}
@@ -422,7 +488,9 @@ export default function Categories() {
                   {visibleCategories.length === 0 ? (
                     <tr>
                       <td className="admin-listing-table__empty" colSpan="8">
-                        Aucune categorie trouvee
+                        {loading
+                          ? 'Chargement des categories...'
+                          : 'Aucune categorie trouvee'}
                       </td>
                     </tr>
                   ) : null}

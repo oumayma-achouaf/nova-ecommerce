@@ -443,6 +443,19 @@
   object-fit: cover;
 }
 
+.product-image-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: #eee7dc;
+  color: #7a6d5e;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
 .discount-badge {
   position: absolute;
   top: 7px;
@@ -1442,6 +1455,11 @@
   height: 100%;
   min-height: 530px;
   object-fit: cover;
+}
+
+.product-image-placeholder--large {
+  min-height: 530px;
+  font-size: 42px;
 }
 
 .product-info {
@@ -7940,5 +7958,473 @@ canvas {
 
   .nova-footer-logo {
     font-size: 27px;
+  }
+}
+
+
+/* =========================================================
+   NOVA — MES COMMANDES DESKTOP LAYOUT FIX
+   Keep this section at the END of shop.css
+========================================================= */
+
+@media (min-width: 901px) {
+
+  .orders-page .account-layout {
+    display: grid;
+    grid-template-columns: 270px minmax(0, 1fr);
+    gap: 32px;
+    width: 100%;
+    align-items: start;
+  }
+
+  .orders-page .account-sidebar {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .orders-page .orders-content {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* TOP BAR */
+
+  .orders-page .orders-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 18px;
+  }
+
+  .orders-page .orders-count {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .orders-page .orders-topbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .orders-page .orders-filter-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .orders-page .orders-search-box {
+    flex: 0 1 300px;
+    width: 300px;
+    min-width: 220px;
+    max-width: 300px;
+  }
+
+  /* LIST */
+
+  .orders-page .orders-screen-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ORDER CARD */
+
+  .orders-page .orders-screen-card {
+    display: grid;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      170px;
+
+    align-items: center;
+
+    gap: 24px;
+
+    width: 100%;
+    min-width: 0;
+    min-height: 155px;
+
+    padding: 18px 20px;
+
+    border: 1px solid #ded8d0;
+    border-radius: 5px;
+
+    background: #fff;
+  }
+
+  /* LEFT CONTENT */
+
+  .orders-page .orders-card-left {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .orders-page .orders-card-title {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 12px;
+  }
+
+  .orders-page .orders-card-title h2 {
+    max-width: 100%;
+    margin: 0;
+
+    overflow: hidden;
+
+    font-family: "Cormorant Garamond", serif;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.1;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .orders-page .orders-card-title span {
+    display: block;
+    margin-top: 4px;
+
+    color: #6f7786;
+    font-size: 9px;
+  }
+
+  .orders-page .orders-card-body {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* PRODUCT IMAGES */
+
+  .orders-page .orders-product-images {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 10px;
+
+    max-width: none;
+  }
+
+  .orders-page .orders-product-image {
+    flex: 0 0 86px;
+
+    width: 86px;
+    height: 80px;
+
+    overflow: hidden;
+
+    border-radius: 4px;
+
+    background: #f1ece5;
+  }
+
+  .orders-page .orders-product-image img {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+    max-width: none;
+
+    object-fit: cover;
+  }
+
+  /* PRODUCT INFORMATION */
+
+  .orders-page .orders-product-info {
+    flex: 1 1 auto;
+
+    width: auto;
+    min-width: 0;
+  }
+
+  .orders-page .orders-product-info strong {
+    display: block;
+
+    max-width: 100%;
+    margin-bottom: 5px;
+
+    overflow: hidden;
+
+    color: #181818;
+
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .orders-page .orders-product-info span {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #737b88;
+
+    font-size: 9px;
+  }
+
+  .orders-page .orders-product-info b {
+    display: block;
+
+    color: #111;
+
+    font-family: "Cormorant Garamond", serif;
+    font-size: 18px;
+    font-weight: 600;
+
+    white-space: nowrap;
+  }
+
+  /* STATUS */
+
+  .orders-page .orders-card-status {
+    align-self: center;
+    justify-self: center;
+
+    min-width: max-content;
+    padding: 0;
+  }
+
+  .orders-page .orders-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+
+    min-height: 31px;
+    padding: 0 13px;
+
+    border-radius: 999px;
+
+    font-size: 9px;
+
+    white-space: nowrap;
+  }
+
+  /* ACTIONS */
+
+  .orders-page .orders-card-actions {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    flex-direction: column;
+
+    gap: 10px;
+
+    width: 170px;
+    min-width: 170px;
+  }
+
+  .orders-page .orders-track-button,
+  .orders-page .orders-details-outline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+
+    margin: 0;
+
+    border-radius: 4px;
+
+    font-size: 9px;
+
+    white-space: nowrap;
+  }
+
+  .orders-page .orders-details-link {
+    display: block;
+
+    width: 100%;
+
+    color: #111;
+
+    font-size: 9px;
+    text-align: center;
+    text-decoration: underline;
+
+    white-space: nowrap;
+  }
+
+  .orders-page .orders-invoice-link {
+    align-self: center;
+  }
+}
+
+
+/* =========================================================
+   NOVA — MES COMMANDES TABLET
+========================================================= */
+
+@media (min-width: 901px) and (max-width: 1150px) {
+
+  .orders-page .orders-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .orders-page .orders-topbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .orders-page .orders-screen-card {
+    grid-template-columns:
+      minmax(0, 1fr)
+      160px;
+
+    gap: 18px;
+  }
+
+  .orders-page .orders-card-status {
+    justify-self: end;
+  }
+
+  .orders-page .orders-card-actions {
+    grid-column: 1 / -1;
+
+    width: 100%;
+    min-width: 0;
+
+    align-items: flex-end;
+  }
+
+  .orders-page .orders-track-button,
+  .orders-page .orders-details-outline,
+  .orders-page .orders-details-link {
+    width: 170px;
+  }
+}
+
+
+/* =========================================================
+   NOVA — MES COMMANDES MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .orders-page .orders-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .orders-page .orders-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+
+    width: 100%;
+  }
+
+  .orders-page .orders-topbar-right {
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+
+    width: 100%;
+  }
+
+  .orders-page .orders-filter-pills {
+    width: 100%;
+
+    overflow-x: auto;
+
+    flex-wrap: nowrap;
+  }
+
+  .orders-page .orders-filter-pills button {
+    flex: 0 0 auto;
+  }
+
+  .orders-page .orders-search-box {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .orders-page .orders-screen-card {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    gap: 16px;
+
+    width: 100%;
+    min-width: 0;
+
+    padding: 16px;
+  }
+
+  .orders-page .orders-card-body {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .orders-page .orders-card-status {
+    justify-self: start;
+  }
+
+  .orders-page .orders-card-actions {
+    width: 100%;
+    min-width: 0;
+
+    align-items: stretch;
+  }
+
+  .orders-page .orders-track-button,
+  .orders-page .orders-details-outline,
+  .orders-page .orders-details-link {
+    width: 100%;
+  }
+}
+
+
+/* =========================================================
+   NOVA — MES COMMANDES SMALL MOBILE
+========================================================= */
+
+@media (max-width: 520px) {
+
+  .orders-page .orders-card-body {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .orders-page .orders-product-images {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .orders-page .orders-product-image {
+    flex: 0 0 72px;
+
+    width: 72px;
+    height: 68px;
+  }
+
+  .orders-page .orders-product-info {
+    width: 100%;
+  }
+
+  .orders-page .orders-product-info strong {
+    white-space: normal;
   }
 }

@@ -31,9 +31,13 @@ const statusData = [
   },
 ]
 
-export default function StatusChart() {
+export default function StatusChart({
+  data = statusData,
+}) {
+  const chartData = data
   const maxValue = Math.max(
-    ...statusData.map((item) => item.value),
+    1,
+    ...chartData.map((item) => item.value),
   )
 
   return (
@@ -46,7 +50,11 @@ export default function StatusChart() {
         gap: '13px',
       }}
     >
-      {statusData.map((item) => {
+      {chartData.length === 0 ? (
+        <span>Aucune commande trouvee.</span>
+      ) : null}
+
+      {chartData.map((item) => {
         const percentage =
           (item.value / maxValue) * 100
 

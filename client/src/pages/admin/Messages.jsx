@@ -19,253 +19,31 @@ import {
   Smile,
   Users,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
-
-const initialConversations = [
-  {
-    id: 1,
-    name: 'Yassine Benali',
-    avatar: '/images/products/nova-category-men.jpg',
-    initials: 'YB',
-    preview: 'Bonjour, où en est ma commande #10024 ?',
-    time: '10:24',
-    unread: 2,
-    status: 'pending',
-    online: true,
-    order: 'Commande #10024',
-    customerSince: 'Client depuis janv. 2024',
-    email: 'yassine.benali@gmail.com',
-    phone: '+212 6 12 34 56 78',
-    location: 'Casablanca',
-    orderCount: 5,
-    spent: '2 450 DH',
-    tags: ['VIP', 'Livraison standard'],
-    messages: [
-      {
-        id: 'm1',
-        sender: 'customer',
-        text: 'Bonjour, où en est ma commande #10024 ?\nJ’aimerais savoir quand elle sera livrée.',
-        time: '10:24',
-      },
-      {
-        id: 'm2',
-        sender: 'admin',
-        text: 'Bonjour Yassine,\n\nVotre commande #10024 a été expédiée hier et est désormais en transit. Vous devriez la recevoir sous 2 à 3 jours ouvrés.\n\nVoici votre numéro de suivi : NV123456789.\n\nN’hésitez pas si vous avez d’autres questions !',
-        time: '10:27',
-        read: true,
-      },
-      {
-        id: 'm3',
-        sender: 'customer',
-        text: 'Parfait, merci beaucoup pour votre retour !\nC’est exactement ce que je voulais savoir.',
-        time: '10:29',
-      },
-      {
-        id: 'm4',
-        sender: 'admin',
-        text: 'Avec plaisir !\nBonne journée et à très bientôt sur NOVA.',
-        time: '10:30',
-        read: true,
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Sara El Amrani',
-    avatar: '/images/products/nova-category-women.jpg',
-    initials: 'SA',
-    preview: 'Merci pour votre réponse !',
-    time: '09:18',
-    unread: 1,
-    status: 'open',
-    online: false,
-    order: 'Commande #10023',
-    customerSince: 'Client depuis mars 2024',
-    email: 'sara.elamrani@gmail.com',
-    phone: '+212 6 78 90 12 34',
-    location: 'Rabat',
-    orderCount: 3,
-    spent: '1 780 DH',
-    tags: ['Fidèle'],
-    messages: [
-      {
-        id: 's1',
-        sender: 'customer',
-        text: 'Merci pour votre réponse !',
-        time: '09:18',
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Omar Haddad',
-    avatar: '/images/products/nova-category-men.jpg',
-    initials: 'OH',
-    preview: 'Puis-je retourner un article ?',
-    time: 'Hier',
-    unread: 1,
-    status: 'pending',
-    online: false,
-    order: 'Commande #10022',
-    customerSince: 'Client depuis févr. 2024',
-    email: 'omar.haddad@gmail.com',
-    phone: '+212 6 22 45 67 89',
-    location: 'Marrakech',
-    orderCount: 2,
-    spent: '980 DH',
-    tags: ['Retour'],
-    messages: [
-      {
-        id: 'o1',
-        sender: 'customer',
-        text: 'Puis-je retourner un article ?',
-        time: 'Hier',
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: 'Lina Kettani',
-    avatar: '/images/products/nova-category-women.jpg',
-    initials: 'LK',
-    preview: 'Quelle est la différence entre les tailles S et M ?',
-    time: 'Hier',
-    unread: 0,
-    status: 'open',
-    online: false,
-    order: 'Commande #10021',
-    customerSince: 'Client depuis avr. 2024',
-    email: 'lina.kettani@gmail.com',
-    phone: '+212 6 33 12 45 78',
-    location: 'Casablanca',
-    orderCount: 4,
-    spent: '2 120 DH',
-    tags: ['Taille'],
-    messages: [
-      {
-        id: 'l1',
-        sender: 'customer',
-        text: 'Quelle est la différence entre les tailles S et M ?',
-        time: 'Hier',
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: 'Mehdi Rachid',
-    avatar: '/images/products/nova-category-men.jpg',
-    initials: 'MR',
-    preview: 'Est-ce que vous avez des codes promo ?',
-    time: '28 sept.',
-    unread: 0,
-    status: 'open',
-    online: false,
-    order: 'Commande #10020',
-    customerSince: 'Client depuis mai 2024',
-    email: 'mehdi.rachid@gmail.com',
-    phone: '+212 6 44 56 78 90',
-    location: 'Tanger',
-    orderCount: 6,
-    spent: '3 450 DH',
-    tags: ['Promo'],
-    messages: [
-      {
-        id: 'm5',
-        sender: 'customer',
-        text: 'Est-ce que vous avez des codes promo ?',
-        time: '28 sept.',
-      },
-    ],
-  },
-  {
-    id: 6,
-    name: 'Nour Idrissi',
-    avatar: '/images/products/nova-category-women.jpg',
-    initials: 'NI',
-    preview: 'Ma commande est toujours en attente...',
-    time: '27 sept.',
-    unread: 0,
-    status: 'pending',
-    online: false,
-    order: 'Commande #10019',
-    customerSince: 'Client depuis juin 2024',
-    email: 'nour.idrissi@gmail.com',
-    phone: '+212 6 55 23 67 81',
-    location: 'Fès',
-    orderCount: 1,
-    spent: '690 DH',
-    tags: ['En attente'],
-    messages: [
-      {
-        id: 'n1',
-        sender: 'customer',
-        text: 'Ma commande est toujours en attente...',
-        time: '27 sept.',
-      },
-    ],
-  },
-  {
-    id: 7,
-    name: 'Karim Zahiri',
-    avatar: '/images/products/nova-category-men.jpg',
-    initials: 'KZ',
-    preview: 'Merci beaucoup pour votre aide !',
-    time: '26 sept.',
-    unread: 0,
-    status: 'resolved',
-    online: false,
-    order: 'Commande #10018',
-    customerSince: 'Client depuis juil. 2024',
-    email: 'karim.zahiri@gmail.com',
-    phone: '+212 6 66 98 21 45',
-    location: 'Agadir',
-    orderCount: 2,
-    spent: '1 140 DH',
-    tags: ['Résolu'],
-    messages: [
-      {
-        id: 'k1',
-        sender: 'customer',
-        text: 'Merci beaucoup pour votre aide !',
-        time: '26 sept.',
-      },
-    ],
-  },
-]
+import {
+  createMessageConversation,
+  getAdminApiErrorMessages,
+  getMessageConversations,
+  sendMessage as sendMessageRequest,
+  updateMessageConversation,
+  uploadAdminImages,
+} from '../../services/adminService.js'
 
 const tabs = [
   ['all', 'Tous'],
   ['unread', 'Non lus'],
   ['pending', 'En attente'],
-  ['resolved', 'Résolus'],
-]
-
-const activity = [
-  {
-    icon: ShoppingCart,
-    title: 'Commande #10024 confirmée',
-    time: 'Il y a 2 jours',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Message reçu',
-    time: 'Il y a 5 min',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Dernier achat : Sac Élise',
-    time: 'Il y a 2 semaines',
-  },
+  ['resolved', 'Resolus'],
 ]
 
 function MessageStatCard({
   icon: Icon,
   label,
   value,
-  change,
+  detail,
   danger = false,
 }) {
   return (
@@ -285,11 +63,11 @@ function MessageStatCard({
               danger ? 'is-danger' : ''
             }`}
           >
-            ↗ {change}
+            {detail}
           </small>
         </div>
 
-        <em>vs mois dernier</em>
+        <em>Base support</em>
       </div>
     </div>
   )
@@ -317,16 +95,128 @@ function Avatar({
   )
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('fr-FR')
+}
+
+function buildStats(nextConversations) {
+  return {
+    total: nextConversations.length,
+    unread: nextConversations.reduce(
+      (total, conversation) =>
+        total + Number(conversation.unread || 0),
+      0,
+    ),
+    active: nextConversations.filter(
+      (conversation) =>
+        !['resolved', 'archived'].includes(conversation.status),
+    ).length,
+    pending: nextConversations.filter(
+      (conversation) => conversation.status === 'pending',
+    ).length,
+  }
+}
+
+function getRecentActivity(conversation) {
+  const activities = []
+
+  if (conversation.order && conversation.order !== 'Sans commande') {
+    activities.push({
+      icon: ShoppingCart,
+      title: conversation.order,
+      time: conversation.time || 'Base support',
+    })
+  }
+
+  if (conversation.preview) {
+    activities.push({
+      icon: MessageCircle,
+      title: 'Dernier message',
+      time: conversation.time || 'Base support',
+    })
+  }
+
+  if (conversation.orderCount > 0) {
+    activities.push({
+      icon: ShoppingBag,
+      title: `${formatNumber(conversation.orderCount)} commandes client`,
+      time: conversation.customerSince || 'Client',
+    })
+  }
+
+  if (activities.length > 0) {
+    return activities
+  }
+
+  return [
+    {
+      icon: MessageCircle,
+      title: 'Aucune activite client',
+      time: 'Base support',
+    },
+  ]
+}
+
 export default function Messages() {
   const attachmentInputRef = useRef(null)
-  const [conversations, setConversations] = useState(
-    initialConversations,
-  )
+  const [conversations, setConversations] = useState([])
+  const [stats, setStats] = useState({})
   const [activeTab, setActiveTab] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedId, setSelectedId] = useState(1)
+  const [selectedId, setSelectedId] = useState(null)
   const [draft, setDraft] = useState('')
+  const [attachmentUrl, setAttachmentUrl] = useState('')
   const [notice, setNotice] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadConversations() {
+      setLoading(true)
+
+      try {
+        const data = await getMessageConversations()
+
+        if (isActive) {
+          setConversations(data.conversations)
+          setStats(data.stats || {})
+          setSelectedId((currentId) =>
+            currentId ||
+            data.conversations.find(
+              (conversation) => conversation.status !== 'archived',
+            )?.id ||
+            null,
+          )
+        }
+      } catch (error) {
+        if (isActive) {
+          setNotice(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadConversations()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const replaceConversation = (nextConversation) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === nextConversation.id
+          ? nextConversation
+          : conversation,
+      ),
+    )
+  }
 
   const filteredConversations = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -340,11 +230,16 @@ export default function Messages() {
         (activeTab === 'resolved' &&
           conversation.status === 'resolved')
       const matchesSearch =
-        conversation.name.toLowerCase().includes(normalizedSearch) ||
-        conversation.preview
+        !normalizedSearch ||
+        String(conversation.name || '')
           .toLowerCase()
           .includes(normalizedSearch) ||
-        conversation.order.toLowerCase().includes(normalizedSearch)
+        String(conversation.preview || '')
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        String(conversation.order || '')
+          .toLowerCase()
+          .includes(normalizedSearch)
 
       return matchesTab && matchesSearch
     })
@@ -356,188 +251,219 @@ export default function Messages() {
   const selectedConversation =
     availableConversations.find(
       (conversation) => conversation.id === selectedId,
-    ) ?? availableConversations[0]
+    ) ?? filteredConversations[0] ?? availableConversations[0] ?? null
 
-  const selectConversation = (conversationId) => {
+  const selectConversation = async (conversationId) => {
     setSelectedId(conversationId)
-    setConversations((currentConversations) =>
-      currentConversations.map((conversation) =>
-        conversation.id === conversationId
-          ? {
-              ...conversation,
-              unread: 0,
-            }
-          : conversation,
-      ),
+
+    const selectedConversationData = conversations.find(
+      (conversation) => conversation.id === conversationId,
     )
-  }
 
-  const sendMessage = () => {
-    const text = draft.trim()
-
-    if (!text) {
+    if (!selectedConversationData || selectedConversationData.unread === 0) {
       return
     }
 
-    setConversations((currentConversations) =>
-      currentConversations.map((conversation) => {
-        if (conversation.id !== selectedConversation.id) {
-          return conversation
-        }
-
-        return {
-          ...conversation,
-          preview: text,
-          time: 'Maintenant',
-          status: 'open',
-          unread: 0,
-          messages: [
-            ...conversation.messages,
-            {
-              id: `local-${Date.now()}`,
-              sender: 'admin',
-              text,
-              time: 'Maintenant',
-              read: true,
-            },
-          ],
-        }
-      }),
-    )
-    setDraft('')
-    setNotice('Reponse envoyee localement.')
-  }
-
-  const markResolved = () => {
-    setConversations((currentConversations) =>
-      currentConversations.map((conversation) =>
-        conversation.id === selectedConversation.id
-          ? {
-              ...conversation,
-              status: 'resolved',
-              unread: 0,
-            }
-          : conversation,
-      ),
-    )
-    setNotice('Conversation marquee comme resolue.')
-  }
-
-  const startNewConversation = () => {
-    const nextId =
-      Math.max(0, ...conversations.map((conversation) => conversation.id)) + 1
-    const newConversation = {
-      id: nextId,
-      name: 'Nouveau client',
-      avatar: '',
-      initials: 'NC',
-      preview: 'Nouvelle conversation locale',
-      time: 'Maintenant',
-      unread: 0,
-      status: 'open',
-      online: false,
-      order: 'Sans commande',
-      customerSince: 'Nouveau contact',
-      email: 'client@nova.local',
-      phone: '+212 6 00 00 00 00',
-      location: 'Maroc',
-      orderCount: 0,
-      spent: '0 DH',
-      tags: ['Nouveau'],
-      messages: [
+    try {
+      const nextConversation = await updateMessageConversation(
+        conversationId,
         {
-          id: `new-${Date.now()}`,
-          sender: 'admin',
-          text: 'Bonjour, comment pouvons-nous vous aider ?',
-          time: 'Maintenant',
           read: true,
         },
-      ],
-    }
+      )
 
-    setConversations((currentConversations) => [
-      newConversation,
-      ...currentConversations,
-    ])
-    setSelectedId(nextId)
-    setDraft('')
-    setNotice('Nouvelle conversation locale creee.')
+      const nextConversations = conversations.map((conversation) =>
+          conversation.id === conversationId
+            ? nextConversation
+            : conversation,
+      )
+
+      setConversations(nextConversations)
+      setStats(buildStats(nextConversations))
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
   }
 
-  const archiveConversation = () => {
-    if (availableConversations.length <= 1) {
-      setNotice('Conservez au moins une conversation visible.')
+  const sendMessage = async () => {
+    const text = draft.trim()
+
+    if (!text || !selectedConversation || isSending) {
       return
     }
 
-    const nextVisible = availableConversations.find(
-      (conversation) => conversation.id !== selectedConversation.id,
-    )
+    setIsSending(true)
 
-    setConversations((currentConversations) =>
-      currentConversations.map((conversation) =>
-        conversation.id === selectedConversation.id
-          ? {
-              ...conversation,
-              status: 'archived',
-              unread: 0,
-            }
-          : conversation,
-      ),
-    )
+    try {
+      const nextConversation = await sendMessageRequest(
+        selectedConversation.id,
+        text,
+        attachmentUrl || null,
+      )
 
-    if (nextVisible) {
-      setSelectedId(nextVisible.id)
+      replaceConversation(nextConversation)
+      setDraft('')
+      setAttachmentUrl('')
+      setNotice('Reponse envoyee en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setIsSending(false)
     }
-
-    setNotice('Conversation archivee localement.')
   }
 
-  const attachFile = (event) => {
+  const markResolved = async () => {
+    if (!selectedConversation) {
+      return
+    }
+
+    try {
+      const nextConversation = await updateMessageConversation(
+        selectedConversation.id,
+        {
+          status: 'resolved',
+          read: true,
+        },
+      )
+
+      replaceConversation(nextConversation)
+      setNotice('Conversation marquee comme resolue.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const startNewConversation = async () => {
+    const subject = window.prompt('Sujet de la conversation')
+
+    if (!subject?.trim()) {
+      return
+    }
+
+    const message =
+      window.prompt('Premier message admin') ||
+      'Bonjour, comment pouvons-nous vous aider ?'
+
+    try {
+      const nextConversation = await createMessageConversation({
+        subject: subject.trim(),
+        message,
+        status: 'open',
+      })
+
+      setConversations((currentConversations) => [
+        nextConversation,
+        ...currentConversations,
+      ])
+      setSelectedId(nextConversation.id)
+      setDraft('')
+      setNotice('Nouvelle conversation creee en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const archiveConversation = async () => {
+    if (!selectedConversation) {
+      return
+    }
+
+    try {
+      const nextConversation = await updateMessageConversation(
+        selectedConversation.id,
+        {
+          status: 'archived',
+          read: true,
+        },
+      )
+
+      const nextConversations = conversations.map((conversation) =>
+          conversation.id === selectedConversation.id
+            ? nextConversation
+            : conversation,
+      )
+      const nextVisible = nextConversations.find(
+        (conversation) => conversation.status !== 'archived',
+      )
+
+      setConversations(nextConversations)
+      setSelectedId(nextVisible?.id || null)
+      setStats(buildStats(nextConversations))
+      setNotice('Conversation archivee en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const attachFile = async (event) => {
     const [file] = Array.from(event.target.files || [])
 
     if (!file) {
       return
     }
 
-    setDraft((currentDraft) =>
-      `${currentDraft}${currentDraft ? ' ' : ''}[Piece jointe: ${file.name}]`,
-    )
-    setNotice('Piece jointe ajoutee au brouillon.')
-    event.target.value = ''
+    try {
+      const [uploadedImage] = await uploadAdminImages([file], 'messages')
+
+      if (uploadedImage) {
+        setAttachmentUrl(uploadedImage.image_url)
+        setDraft((currentDraft) =>
+          currentDraft ||
+          `Piece jointe: ${uploadedImage.image_url}`,
+        )
+        setNotice('Piece jointe envoyee au serveur.')
+      }
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      event.target.value = ''
+    }
   }
 
   const addEmoji = () => {
     setDraft((currentDraft) => `${currentDraft}${currentDraft ? ' ' : ''}:)`)
   }
 
-  const addTag = () => {
+  const addTag = async () => {
+    if (!selectedConversation) {
+      return
+    }
+
     const tag = window.prompt('Nouveau tag client')
 
     if (!tag?.trim()) {
       return
     }
 
-    setConversations((currentConversations) =>
-      currentConversations.map((conversation) =>
-        conversation.id === selectedConversation.id
-          ? {
-              ...conversation,
-              tags: Array.from(
-                new Set([...conversation.tags, tag.trim()]),
-              ),
-            }
-          : conversation,
-      ),
-    )
-    setNotice('Tag ajoute localement.')
+    try {
+      const nextTags = Array.from(
+        new Set([...selectedConversation.tags, tag.trim()]),
+      )
+      const nextConversation = await updateMessageConversation(
+        selectedConversation.id,
+        {
+          tags: nextTags,
+        },
+      )
+
+      replaceConversation(nextConversation)
+      setNotice('Tag ajoute en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
   }
 
   const showCustomerActions = () => {
-    setNotice(
-      `Options client ouvertes pour ${selectedConversation.name}.`,
-    )
+    if (selectedConversation) {
+      setNotice(
+        `Client selectionne : ${selectedConversation.name}.`,
+      )
+    }
   }
+
+  const activity = selectedConversation
+    ? getRecentActivity(selectedConversation)
+    : []
 
   return (
     <div className="admin-layout">
@@ -558,8 +484,7 @@ export default function Messages() {
               <h1>Gestion des messages</h1>
 
               <p>
-                Consultez et gérez les conversations clients en
-                temps réel.
+                Consultez et gerez les conversations clients en base.
               </p>
             </div>
 
@@ -576,33 +501,37 @@ export default function Messages() {
           <section className="messages-stats">
             <MessageStatCard
               icon={MessageCircle}
-              label="Messages reçus"
-              value="1 248"
-              change="+12%"
+              label="Conversations"
+              value={formatNumber(stats.total)}
+              detail="Total"
             />
 
             <MessageStatCard
               icon={Mail}
               label="Non lus"
-              value="18"
-              change="+20%"
+              value={formatNumber(stats.unread)}
+              detail="A traiter"
               danger
             />
 
             <MessageStatCard
               icon={Users}
-              label="Conversations actives"
-              value="67"
-              change="+34%"
+              label="Actives"
+              value={formatNumber(stats.active)}
+              detail="Ouvertes"
             />
 
             <MessageStatCard
               icon={Clock3}
-              label="Temps moyen de réponse"
-              value="8 min"
-              change="-15%"
+              label="En attente"
+              value={formatNumber(stats.pending)}
+              detail="Pending"
             />
           </section>
+
+          {loading ? (
+            <p className="admin-local-notice">Chargement des conversations...</p>
+          ) : null}
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
 
@@ -641,7 +570,7 @@ export default function Messages() {
                     key={conversation.id}
                     type="button"
                     className={`messages-conversation ${
-                      selectedConversation.id === conversation.id
+                      selectedConversation?.id === conversation.id
                         ? 'is-selected'
                         : ''
                     }`}
@@ -668,255 +597,284 @@ export default function Messages() {
                     </span>
                   </button>
                 ))}
+
+                {!loading && filteredConversations.length === 0 ? (
+                  <p className="admin-local-notice">
+                    Aucune conversation trouvee.
+                  </p>
+                ) : null}
               </div>
             </aside>
 
-            <section className="dashboard-card messages-chat-panel">
-              <header className="messages-chat-header">
-                <div className="messages-chat-header__profile">
-                  <Avatar
-                    src={selectedConversation.avatar}
-                    initials={selectedConversation.initials}
-                    alt={selectedConversation.name}
-                    className="messages-avatar--large"
-                  />
-
-                  <div>
-                    <div className="messages-chat-header__title">
-                      <h2>{selectedConversation.name}</h2>
-                      {selectedConversation.online ? (
-                        <span>
-                          <i />
-                          En ligne
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <p>
-                      {selectedConversation.order}
-                      <span />
-                      {selectedConversation.customerSince}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="messages-chat-actions">
-                  <button type="button" onClick={archiveConversation}>
-                    <Archive size={17} strokeWidth={1.7} />
-                    <span>Archiver</span>
-                  </button>
-
-                  <button
-                    className="is-primary"
-                    type="button"
-                    onClick={markResolved}
-                  >
-                    <Check size={17} strokeWidth={1.8} />
-                    <span>Marquer résolu</span>
-                  </button>
-                </div>
-              </header>
-
-              <div className="messages-chat-body">
-                <div className="messages-day-divider">
-                  Aujourd’hui
-                </div>
-
-                {selectedConversation.messages.map((message) => (
-                  <div
-                    className={`messages-chat-message messages-chat-message--${message.sender}`}
-                    key={message.id}
-                  >
-                    {message.sender === 'customer' ? (
+            {selectedConversation ? (
+              <>
+                <section className="dashboard-card messages-chat-panel">
+                  <header className="messages-chat-header">
+                    <div className="messages-chat-header__profile">
                       <Avatar
                         src={selectedConversation.avatar}
                         initials={selectedConversation.initials}
                         alt={selectedConversation.name}
-                        className="messages-avatar--tiny"
+                        className="messages-avatar--large"
                       />
-                    ) : null}
 
-                    <div className="messages-bubble-wrap">
-                      <div className="messages-bubble">
-                        {message.text
-                          .split('\n')
-                          .map((line, index) => (
-                            <span key={`${message.id}-${index}`}>
-                              {line || '\u00a0'}
+                      <div>
+                        <div className="messages-chat-header__title">
+                          <h2>{selectedConversation.name}</h2>
+                          {selectedConversation.online ? (
+                            <span>
+                              <i />
+                              En ligne
                             </span>
-                          ))}
-                      </div>
+                          ) : null}
+                        </div>
 
-                      <div className="messages-message-time">
-                        {message.time}
-                        {message.sender === 'admin' &&
-                        message.read ? (
-                          <CheckCheck
-                            size={14}
-                            strokeWidth={1.8}
-                          />
-                        ) : null}
+                        <p>
+                          {selectedConversation.order}
+                          <span />
+                          {selectedConversation.customerSince}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
 
-              <footer className="messages-composer">
-                <button
-                  type="button"
-                  aria-label="Joindre un fichier"
-                  onClick={() => attachmentInputRef.current?.click()}
-                >
-                  <Paperclip size={19} strokeWidth={1.8} />
-                </button>
-                <input
-                  ref={attachmentInputRef}
-                  type="file"
-                  hidden
-                  onChange={attachFile}
-                />
+                    <div className="messages-chat-actions">
+                      <button type="button" onClick={archiveConversation}>
+                        <Archive size={17} strokeWidth={1.7} />
+                        <span>Archiver</span>
+                      </button>
 
-                <div className="messages-composer__input">
-                  <input
-                    type="text"
-                    value={draft}
-                    placeholder="Écrire votre réponse..."
-                    onChange={(event) =>
-                      setDraft(event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        sendMessage()
-                      }
-                    }}
-                  />
+                      <button
+                        className="is-primary"
+                        type="button"
+                        onClick={markResolved}
+                      >
+                        <Check size={17} strokeWidth={1.8} />
+                        <span>Marquer resolu</span>
+                      </button>
+                    </div>
+                  </header>
 
-                  <button
-                    className="messages-composer__emoji"
-                    type="button"
-                    aria-label="Ajouter une reaction"
-                    onClick={addEmoji}
-                  >
-                    <Smile size={19} strokeWidth={1.7} />
-                  </button>
-                </div>
+                  <div className="messages-chat-body">
+                    <div className="messages-day-divider">
+                      Conversation
+                    </div>
 
-                <button
-                  className="messages-send-button"
-                  type="button"
-                  aria-label="Envoyer le message"
-                  onClick={sendMessage}
-                >
-                  <Send size={19} strokeWidth={1.8} />
-                </button>
-              </footer>
-            </section>
+                    {selectedConversation.messages.map((message) => (
+                      <div
+                        className={`messages-chat-message messages-chat-message--${message.sender}`}
+                        key={message.id}
+                      >
+                        {message.sender === 'customer' ? (
+                          <Avatar
+                            src={selectedConversation.avatar}
+                            initials={selectedConversation.initials}
+                            alt={selectedConversation.name}
+                            className="messages-avatar--tiny"
+                          />
+                        ) : null}
 
-            <aside className="dashboard-card messages-detail-panel">
-              <div className="messages-detail-heading">
-                <h2>Détails du client</h2>
-                <button
-                  type="button"
-                  aria-label="Plus d’options"
-                  onClick={showCustomerActions}
-                >
-                  <MoreVertical size={18} strokeWidth={1.8} />
-                </button>
-              </div>
+                        <div className="messages-bubble-wrap">
+                          <div className="messages-bubble">
+                            {message.text
+                              .split('\n')
+                              .map((line, index) => (
+                                <span key={`${message.id}-${index}`}>
+                                  {line || '\u00a0'}
+                                </span>
+                              ))}
+                            {message.attachmentUrl ? (
+                              <a
+                                href={message.attachmentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Piece jointe
+                              </a>
+                            ) : null}
+                          </div>
 
-              <div className="messages-customer-card">
-                <Avatar
-                  src={selectedConversation.avatar}
-                  initials={selectedConversation.initials}
-                  alt={selectedConversation.name}
-                  className="messages-avatar--xl"
-                />
-
-                <div>
-                  <strong>{selectedConversation.name}</strong>
-
-                  <span>
-                    <Mail size={14} />
-                    {selectedConversation.email}
-                  </span>
-
-                  <span>
-                    <Phone size={14} />
-                    {selectedConversation.phone}
-                  </span>
-
-                  <span>
-                    <MapPin size={14} />
-                    {selectedConversation.location}
-                  </span>
-                </div>
-              </div>
-
-              <div className="messages-customer-metrics">
-                <div>
-                  <ShoppingCart size={22} strokeWidth={1.7} />
-                  <span>Total de commandes</span>
-                  <strong>
-                    {selectedConversation.orderCount}
-                  </strong>
-                </div>
-
-                <div>
-                  <Package size={22} strokeWidth={1.7} />
-                  <span>Total dépensé</span>
-                  <strong>{selectedConversation.spent}</strong>
-                </div>
-              </div>
-
-              <div className="messages-tags">
-                <div>
-                  <h3>Tags</h3>
-                  <button type="button" onClick={addTag}>
-                    + Ajouter un tag
-                  </button>
-                </div>
-
-                <div className="messages-tags__list">
-                  {selectedConversation.tags.map((tag) => (
-                    <span
-                      className={
-                        tag === 'VIP' ? 'is-vip' : ''
-                      }
-                      key={tag}
-                    >
-                      {tag === 'VIP' ? <i /> : null}
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="messages-activity">
-                <h3>Activité récente</h3>
-
-                <div className="messages-activity__list">
-                  {activity.map((item) => {
-                    const Icon = item.icon
-
-                    return (
-                      <div key={item.title}>
-                        <span className="messages-activity__dot" />
-
-                        <div className="messages-activity__icon">
-                          <Icon size={20} strokeWidth={1.7} />
-                        </div>
-
-                        <div>
-                          <strong>{item.title}</strong>
-                          <span>{item.time}</span>
+                          <div className="messages-message-time">
+                            {message.time}
+                            {message.sender === 'admin' &&
+                            message.read ? (
+                              <CheckCheck
+                                size={14}
+                                strokeWidth={1.8}
+                              />
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+
+                  <footer className="messages-composer">
+                    <button
+                      type="button"
+                      aria-label="Joindre un fichier"
+                      onClick={() => attachmentInputRef.current?.click()}
+                    >
+                      <Paperclip size={19} strokeWidth={1.8} />
+                    </button>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      hidden
+                      onChange={attachFile}
+                    />
+
+                    <div className="messages-composer__input">
+                      <input
+                        type="text"
+                        value={draft}
+                        placeholder="Ecrire votre reponse..."
+                        onChange={(event) =>
+                          setDraft(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            sendMessage()
+                          }
+                        }}
+                      />
+
+                      <button
+                        className="messages-composer__emoji"
+                        type="button"
+                        aria-label="Ajouter une reaction"
+                        onClick={addEmoji}
+                      >
+                        <Smile size={19} strokeWidth={1.7} />
+                      </button>
+                    </div>
+
+                    <button
+                      className="messages-send-button"
+                      type="button"
+                      aria-label="Envoyer le message"
+                      onClick={sendMessage}
+                      disabled={isSending}
+                    >
+                      <Send size={19} strokeWidth={1.8} />
+                    </button>
+                  </footer>
+                </section>
+
+                <aside className="dashboard-card messages-detail-panel">
+                  <div className="messages-detail-heading">
+                    <h2>Details du client</h2>
+                    <button
+                      type="button"
+                      aria-label="Plus d options"
+                      onClick={showCustomerActions}
+                    >
+                      <MoreVertical size={18} strokeWidth={1.8} />
+                    </button>
+                  </div>
+
+                  <div className="messages-customer-card">
+                    <Avatar
+                      src={selectedConversation.avatar}
+                      initials={selectedConversation.initials}
+                      alt={selectedConversation.name}
+                      className="messages-avatar--xl"
+                    />
+
+                    <div>
+                      <strong>{selectedConversation.name}</strong>
+
+                      <span>
+                        <Mail size={14} />
+                        {selectedConversation.email || 'Email non renseigne'}
+                      </span>
+
+                      <span>
+                        <Phone size={14} />
+                        {selectedConversation.phone || 'Telephone non renseigne'}
+                      </span>
+
+                      <span>
+                        <MapPin size={14} />
+                        {selectedConversation.location || 'Localisation non renseignee'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="messages-customer-metrics">
+                    <div>
+                      <ShoppingCart size={22} strokeWidth={1.7} />
+                      <span>Total de commandes</span>
+                      <strong>
+                        {formatNumber(selectedConversation.orderCount)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <Package size={22} strokeWidth={1.7} />
+                      <span>Total depense</span>
+                      <strong>{selectedConversation.spent}</strong>
+                    </div>
+                  </div>
+
+                  <div className="messages-tags">
+                    <div>
+                      <h3>Tags</h3>
+                      <button type="button" onClick={addTag}>
+                        + Ajouter un tag
+                      </button>
+                    </div>
+
+                    <div className="messages-tags__list">
+                      {selectedConversation.tags.map((tag) => (
+                        <span
+                          className={
+                            tag === 'VIP' ? 'is-vip' : ''
+                          }
+                          key={tag}
+                        >
+                          {tag === 'VIP' ? <i /> : null}
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="messages-activity">
+                    <h3>Activite recente</h3>
+
+                    <div className="messages-activity__list">
+                      {activity.map((item) => {
+                        const Icon = item.icon
+
+                        return (
+                          <div key={`${item.title}-${item.time}`}>
+                            <span className="messages-activity__dot" />
+
+                            <div className="messages-activity__icon">
+                              <Icon size={20} strokeWidth={1.7} />
+                            </div>
+
+                            <div>
+                              <strong>{item.title}</strong>
+                              <span>{item.time}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </aside>
+              </>
+            ) : (
+              <section className="dashboard-card messages-chat-panel">
+                <div className="messages-chat-body">
+                  <div className="messages-day-divider">
+                    Aucune conversation selectionnee
+                  </div>
                 </div>
-              </div>
-            </aside>
+              </section>
+            )}
           </section>
         </main>
       </div>

@@ -17,10 +17,26 @@ function createCheckoutError(
 
 function getShippingCost(
   deliveryMethod,
+  subtotal,
+  shippingSettings,
+  promotionFreeShipping = false,
 ) {
+  if (promotionFreeShipping) {
+    return 0
+  }
+
+  const freeStandardShipping =
+    deliveryMethod === 'standard' &&
+    shippingSettings.freeFrom > 0 &&
+    Number(subtotal) >= shippingSettings.freeFrom
+
+  if (freeStandardShipping) {
+    return 0
+  }
+
   return deliveryMethod === 'express'
-    ? 50
-    : 0
+    ? shippingSettings.express
+    : shippingSettings.standard
 }
 
 function validateDeliveryMethod(
@@ -82,6 +98,7 @@ async function calculatePromotion({
   subtotal,
   cartItems,
   deliveryMethod,
+  shippingSettings,
 }) {
   if (!code) {
     return {
@@ -91,6 +108,8 @@ async function calculatePromotion({
       shippingCost:
         getShippingCost(
           deliveryMethod,
+          subtotal,
+          shippingSettings,
         ),
     }
   }
@@ -107,6 +126,8 @@ async function calculatePromotion({
       shippingCost:
         getShippingCost(
           deliveryMethod,
+          subtotal,
+          shippingSettings,
         ),
     }
   }
@@ -302,12 +323,12 @@ async function calculatePromotion({
       discount * 100,
     ) / 100
 
-  const shippingCost =
-    freeShipping
-      ? 0
-      : getShippingCost(
-          deliveryMethod,
-        )
+  const shippingCost = getShippingCost(
+    deliveryMethod,
+    subtotal,
+    shippingSettings,
+    freeShipping,
+  )
 
   return {
     promotion,
@@ -358,6 +379,13 @@ async function calculateCheckoutPricing({
         p.price AS product_price,
         p.status AS product_status,
         p.stock AS product_stock,
+        p.category_id,
+        c.status AS category_status,
+        (
+          SELECT COUNT(*)
+          FROM product_variants
+          WHERE product_variants.product_id = p.id
+        ) AS variant_count,
 
         pv.size,
         pv.color,
@@ -368,6 +396,9 @@ async function calculateCheckoutPricing({
 
       INNER JOIN products p
         ON p.id = ci.product_id
+
+      LEFT JOIN categories c
+        ON c.id = p.category_id
 
       LEFT JOIN product_variants pv
         ON pv.id = ci.variant_id
@@ -390,7 +421,11 @@ async function calculateCheckoutPricing({
   for (const item of cartItems) {
     if (
       item.product_status !==
-      'active'
+        'active' ||
+      (
+        item.category_id !== null &&
+        item.category_status !== 'active'
+      )
     ) {
       throw createCheckoutError(
         `${item.product_name} n'est plus disponible.`,
@@ -403,6 +438,15 @@ async function calculateCheckoutPricing({
     ) {
       throw createCheckoutError(
         `La variante de ${item.product_name} n’est plus disponible.`,
+      )
+    }
+
+    if (
+      item.variant_id === null &&
+      Number(item.variant_count || 0) > 0
+    ) {
+      throw createCheckoutError(
+        `Veuillez selectionner une variante pour ${item.product_name}.`,
       )
     }
 
@@ -446,6 +490,11 @@ async function calculateCheckoutPricing({
       subtotal * 100,
     ) / 100
 
+  const shippingSettings =
+    await getShippingSettings(
+      connection,
+    )
+
   const promotionResult =
     await calculatePromotion({
       connection,
@@ -453,6 +502,7 @@ async function calculateCheckoutPricing({
       subtotal,
       cartItems,
       deliveryMethod,
+      shippingSettings,
     })
 
   const discount =
@@ -492,3 +542,6 @@ module.exports = {
   validateDeliveryMethod,
   validateShippingAddress,
 }
+const {
+  getShippingSettings,
+} = require('./settings.service')

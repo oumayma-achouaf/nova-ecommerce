@@ -77,16 +77,26 @@ function createPoints(data, width, height, maxValue) {
 
 export default function SalesChart({
   period = 'monthly',
+  data,
 }) {
   const width = 800
   const height = 220
-  const selectedSeries = chartSeries[period] || chartSeries.monthly
+  const selectedSeries =
+    data?.current?.length
+      ? data
+      : chartSeries[period] || chartSeries.monthly
   const maxValue =
-    Math.ceil(
-      Math.max(...selectedSeries.current, ...selectedSeries.previous) / 1000,
-    ) *
-    1000 *
-    1.15
+    Math.max(
+      1000,
+      Math.ceil(
+        Math.max(
+          ...selectedSeries.current,
+          ...(selectedSeries.previous || []),
+        ) / 1000,
+      ) *
+        1000 *
+        1.15,
+    )
 
   const currentPoints = createPoints(
     selectedSeries.current,
@@ -96,7 +106,7 @@ export default function SalesChart({
   )
 
   const previousPoints = createPoints(
-    selectedSeries.previous,
+    selectedSeries.previous || [],
     width,
     height,
     maxValue,
@@ -191,7 +201,7 @@ export default function SalesChart({
           </svg>
 
           <div className="sales-chart__x-axis">
-            {selectedSeries.labels.map((label) => (
+            {(selectedSeries.labels || []).map((label) => (
               <span key={label}>{label}</span>
             ))}
           </div>

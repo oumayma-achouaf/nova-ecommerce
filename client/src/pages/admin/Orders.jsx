@@ -18,16 +18,17 @@ import {
   Truck,
   XCircle,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AdminSidebar from '../../components/layout/AdminSidebar'
 import AdminHeader from '../../components/layout/AdminHeader'
 import {
+  getAdminApiErrorMessages,
   getOrders,
   orderStatusLabels,
   printInvoice,
-  saveOrders,
+  updateOrderStatus as persistOrderStatus,
 } from '../../services/adminService.js'
 
 const tabs = [
@@ -74,18 +75,10 @@ function OrdersStatCard({ icon: Icon, value, label, growth, danger = false }) {
       <div className={`orders-stat-card__growth ${danger ? 'is-danger' : ''}`}>
         <span>↗</span>
         <strong>{growth}</strong>
-        <small>session locale</small>
+        <small>base de donnees</small>
       </div>
     </div>
   )
-}
-
-function getNextStatus(order, statusKey) {
-  return {
-    ...order,
-    statusClass: statusKey,
-    status: orderStatusLabels[statusKey],
-  }
 }
 
 function formatCsvCell(value) {
@@ -94,7 +87,9 @@ function formatCsvCell(value) {
 
 export default function Orders() {
   const navigate = useNavigate()
-  const [orders, setOrders] = useState(() => getOrders())
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('all')
@@ -103,6 +98,37 @@ export default function Orders() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(8)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadOrders() {
+      setLoading(true)
+      setApiError('')
+
+      try {
+        const nextOrders = await getOrders()
+
+        if (isActive) {
+          setOrders(nextOrders)
+        }
+      } catch (error) {
+        if (isActive) {
+          setApiError(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadOrders()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
   const orderDates = useMemo(
     () => Array.from(new Set(orders.map((order) => order.date))),
     [orders],
@@ -116,6 +142,7 @@ export default function Orders() {
         statusFilter === 'all' || order.statusClass === statusFilter
       const matchesSearch =
         order.id.toLowerCase().includes(normalizedSearch) ||
+        order.orderNumber.toLowerCase().includes(normalizedSearch) ||
         order.customer.toLowerCase().includes(normalizedSearch)
       const matchesDate = dateFilter === 'all' || order.date === dateFilter
       const matchesPayment =
@@ -135,23 +162,28 @@ export default function Orders() {
     visibleOrders.length > 0 &&
     visibleOrders.every((order) => selectedIds.includes(order.id))
 
-  const updateOrders = (nextOrders) => {
-    setOrders(nextOrders)
-    saveOrders(nextOrders)
-  }
-
   const resetToFirstPage = (setter) => (event) => {
     setter(event.target.value)
     setPage(1)
     setSelectedIds([])
   }
 
-  const updateOrderStatus = (orderId, statusKey) => {
-    const nextOrders = orders.map((order) =>
-      order.id === orderId ? getNextStatus(order, statusKey) : order,
-    )
-    updateOrders(nextOrders)
-    setNotice(`${orderId} mis a jour : ${orderStatusLabels[statusKey]}.`)
+  const updateOrderStatus = async (orderId, statusKey) => {
+    setApiError('')
+
+    try {
+      const savedOrder = await persistOrderStatus(orderId, statusKey)
+
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order.id === orderId ? savedOrder : order,
+        ),
+      )
+      setNotice(`${orderId} mis a jour : ${orderStatusLabels[statusKey]}.`)
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    }
   }
 
   const toggleAllVisible = () => {
@@ -228,6 +260,10 @@ export default function Orders() {
   const shippedCount = orders.filter(
     (order) => order.statusClass === 'shipped',
   ).length
+  const generatedRevenue = orders.reduce(
+    (total, order) => total + Number(order.amountValue || 0),
+    0,
+  )
 
   return (
     <div className="admin-layout">
@@ -240,7 +276,7 @@ export default function Orders() {
           <section className="orders-page__heading">
             <div>
               <h1>Gestion des commandes</h1>
-              <p>Suivez, filtrez et gerez toutes les commandes localement.</p>
+              <p>Suivez, filtrez et gerez toutes les commandes.</p>
             </div>
 
             <button
@@ -248,7 +284,9 @@ export default function Orders() {
               type="button"
               onClick={() => {
                 setDateFilter((currentFilter) =>
-                  currentFilter === 'all' ? orderDates[0] : 'all',
+                  currentFilter === 'all' && orderDates[0]
+                    ? orderDates[0]
+                    : 'all',
                 )
                 setPage(1)
               }}
@@ -264,32 +302,44 @@ export default function Orders() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des commandes depuis la base de donnees...
+            </p>
+          ) : null}
+          {apiError ? (
+            <div className="product-form-alert product-form-alert--error">
+              {apiError}
+            </div>
+          ) : null}
 
           <section className="orders-stats">
             <OrdersStatCard
               icon={ShoppingBag}
               value={orders.length}
               label="Total commandes"
-              growth="+ local"
+              growth="+ DB"
             />
             <OrdersStatCard
               icon={Clock3}
               value={pendingCount}
               label="En attente"
-              growth="+ local"
+              growth="+ DB"
               danger
             />
             <OrdersStatCard
               icon={Truck}
               value={shippedCount}
               label="Expediees"
-              growth="+ local"
+              growth="+ DB"
             />
             <OrdersStatCard
               icon={BarChart3}
-              value="125 600 DH"
+              value={`${new Intl.NumberFormat('fr-FR')
+                .format(generatedRevenue)
+                .replace(/\u202f/g, ' ')} DH`}
               label="Chiffre genere"
-              growth="+16%"
+              growth="+ DB"
             />
           </section>
 
@@ -493,7 +543,9 @@ export default function Orders() {
                     {visibleOrders.length === 0 ? (
                       <tr>
                         <td className="orders-table__empty" colSpan="9">
-                          Aucune commande trouvee
+                          {loading
+                            ? 'Chargement des commandes...'
+                            : 'Aucune commande trouvee'}
                         </td>
                       </tr>
                     ) : null}
@@ -607,11 +659,11 @@ export default function Orders() {
                       <strong>{firstOrder.customer}</strong>
                       <span>
                         <Mail size={13} />
-                        client@nova.local
+                        {firstOrder.customerEmail || 'Email non renseigne'}
                       </span>
                       <span>
                         <Phone size={13} />
-                        +212 6 61 23 45 67
+                        {firstOrder.customerPhone || 'Non renseigne'}
                       </span>
                     </div>
                     <button
@@ -630,11 +682,8 @@ export default function Orders() {
                       <strong>Adresse de livraison</strong>
                     </div>
                     <p>
-                      123, Avenue Mohammed V
-                      <br />
-                      Casablanca
-                      <br />
-                      Maroc
+                      {firstOrder.shippingAddressText ||
+                        'Adresse non renseignee'}
                     </p>
                   </div>
 

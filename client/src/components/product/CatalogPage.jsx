@@ -10,10 +10,6 @@ import ProductGrid from './ProductGrid.jsx'
 
 import productService from '../../services/productService.js'
 
-import {
-  products as localCatalogProducts,
-} from '../../pages/shop/catalogData.js'
-
 const sortOptions = [
   {
     value: 'newest',
@@ -201,7 +197,6 @@ function CatalogPage({
   title,
   description,
   breadcrumb,
-  products: legacyProducts = [],
   categoryField = 'category',
   filterOptions,
   heroImage,
@@ -300,15 +295,6 @@ function CatalogPage({
 
   const normalizedProducts =
     useMemo(() => {
-      if (
-        error ||
-        (!loading &&
-          databaseProducts.length ===
-            0)
-      ) {
-        return legacyProducts
-      }
-
       if (loading) {
         return []
       }
@@ -318,25 +304,6 @@ function CatalogPage({
           databaseProduct,
           index,
         ) => {
-          const localProduct =
-            localCatalogProducts.find(
-              (product) =>
-                product.id ===
-                databaseProduct.slug,
-            )
-
-          const legacyPageProduct =
-            legacyProducts.find(
-              (product) =>
-                product.id ===
-                databaseProduct.slug,
-            )
-
-          const fallbackProduct =
-            localProduct ||
-            legacyPageProduct ||
-            {}
-
           const priceValue =
             Number(
               databaseProduct.price ||
@@ -354,20 +321,18 @@ function CatalogPage({
               : null
 
           const image =
-            databaseProduct.image_url ||
-            fallbackProduct.image ||
-            ''
+            databaseProduct.image_url || ''
 
           const imageAlt =
             databaseProduct.image_alt ||
-            fallbackProduct.imageAlt ||
             databaseProduct.name ||
             'Produit NOVA'
 
           return {
-            ...fallbackProduct,
-
             id:
+              databaseProduct.slug,
+
+            slug:
               databaseProduct.slug,
 
             databaseId:
@@ -379,7 +344,6 @@ function CatalogPage({
             description:
               databaseProduct.short_description ||
               databaseProduct.description ||
-              fallbackProduct.description ||
               '',
 
             image,
@@ -445,11 +409,9 @@ function CatalogPage({
 
             department:
               databaseProduct.category_name ||
-              fallbackProduct.department ||
               '',
 
             group:
-              fallbackProduct.group ||
               databaseProduct.category_name ||
               '',
 
@@ -460,30 +422,22 @@ function CatalogPage({
               databaseProduct.updated_at,
 
             isNew:
-              fallbackProduct.isNew ??
               Boolean(
                 databaseProduct.featured,
               ),
 
-            rating:
-              fallbackProduct.rating ||
-              0,
+            rating: 0,
 
-            reviews:
-              fallbackProduct.reviews ||
-              0,
+            reviews: 0,
 
             sortIndex:
-              fallbackProduct.sortIndex ||
               index + 1,
           }
         },
       )
     }, [
       databaseProducts,
-      legacyProducts,
       loading,
-      error,
     ])
 
   const pageProducts =
@@ -720,7 +674,7 @@ function CatalogPage({
           <>
             {error ? (
               <p className="catalog-status" role="status">
-                Catalogue local affiche, API momentanement indisponible.
+                Impossible de charger les produits depuis le serveur.
               </p>
             ) : null}
 

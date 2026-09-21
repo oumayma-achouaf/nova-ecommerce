@@ -16,6 +16,7 @@ function CheckoutSummary({
   total = 0,
   appliedPromotion = null,
   freeShipping = false,
+  freeShippingThreshold = 0,
   pendingMessage = '',
   confirmLabel = 'Confirmer la commande',
   isSubmitting = false,
@@ -211,7 +212,7 @@ function CheckoutSummary({
 
           <span>
             <strong>
-              Livraison offerte dès 600 DH
+              Livraison standard offerte dès {formatPrice(freeShippingThreshold)} DH
             </strong>
 
             Partout au Maroc

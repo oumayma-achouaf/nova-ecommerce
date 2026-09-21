@@ -15,16 +15,17 @@ import {
   UserRound,
   XCircle,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import {
-  getOrders,
+  getAdminApiErrorMessages,
+  getOrder,
   orderStatusLabels,
   printInvoice,
-  saveOrders,
+  updateOrderStatus as persistOrderStatus,
 } from '../../services/adminService.js'
 
 const timelineProgressByStatus = {
@@ -83,16 +84,63 @@ function DetailRow({ label, value }) {
 
 export default function OrderDetails() {
   const { id } = useParams()
-  const [orders, setOrders] = useState(() => getOrders())
+  const [order, setOrder] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const order = useMemo(
-    () =>
-      orders.find(
-        (currentOrder) =>
-          normalizeOrderId(currentOrder.id) === normalizeOrderId(id),
-      ),
-    [id, orders],
-  )
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadOrder() {
+      setLoading(true)
+      setError('')
+
+      try {
+        const nextOrder = await getOrder(normalizeOrderId(id))
+
+        if (isActive) {
+          setOrder(nextOrder)
+        }
+      } catch (requestError) {
+        if (isActive) {
+          setOrder(null)
+          setError(getAdminApiErrorMessages(requestError).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadOrder()
+
+    return () => {
+      isActive = false
+    }
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="admin-layout">
+        <AdminSidebar />
+
+        <div className="admin-main">
+          <AdminHeader />
+
+          <main className="admin-dashboard order-details-page">
+            <section className="order-details-heading">
+              <div>
+                <h1>Chargement de la commande</h1>
+                <p>Lecture des donnees depuis la base.</p>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   if (!order) {
     return (
@@ -106,7 +154,10 @@ export default function OrderDetails() {
             <section className="order-details-heading">
               <div>
                 <h1>Commande introuvable</h1>
-                <p>Aucune commande locale ne correspond a cet identifiant.</p>
+                <p>
+                  {error ||
+                    'Aucune commande en base ne correspond a cet identifiant.'}
+                </p>
               </div>
               <Link
                 className="order-details-action order-details-action--primary"
@@ -121,20 +172,18 @@ export default function OrderDetails() {
     )
   }
 
-  const updateStatus = (nextStatusKey) => {
-    const nextOrders = orders.map((currentOrder) =>
-      currentOrder.id === order.id
-        ? {
-            ...currentOrder,
-            statusClass: nextStatusKey,
-            status: orderStatusLabels[nextStatusKey],
-          }
-        : currentOrder,
-    )
+  const updateStatus = async (nextStatusKey) => {
+    setError('')
 
-    setOrders(nextOrders)
-    saveOrders(nextOrders)
-    setNotice(`Statut mis a jour : ${orderStatusLabels[nextStatusKey]}.`)
+    try {
+      const savedOrder = await persistOrderStatus(order.id, nextStatusKey)
+
+      setOrder(savedOrder)
+      setNotice(`Statut mis a jour : ${orderStatusLabels[nextStatusKey]}.`)
+    } catch (requestError) {
+      setNotice('')
+      setError(getAdminApiErrorMessages(requestError).join(' '))
+    }
   }
 
   const progressIndex = timelineProgressByStatus[order.statusClass] ?? -1
@@ -222,6 +271,11 @@ export default function OrderDetails() {
           </section>
 
           {notice ? <p className="order-details-notice">{notice}</p> : null}
+          {error ? (
+            <div className="product-form-alert product-form-alert--error">
+              {error}
+            </div>
+          ) : null}
 
           <section className="order-details-summary-grid">
             <div className="dashboard-card order-details-summary-card">
@@ -253,7 +307,10 @@ export default function OrderDetails() {
                   <h2>Resume de la commande</h2>
                 </div>
                 <div className="order-details-info-grid">
-                  <DetailRow label="Numero de commande" value={order.id} />
+                  <DetailRow
+                    label="Numero de commande"
+                    value={order.orderNumber}
+                  />
                   <DetailRow label="Date" value={order.date} />
                   <DetailRow label="Statut" value={order.status} />
                   <DetailRow label="Mode de paiement" value={order.payment} />
@@ -279,23 +336,35 @@ export default function OrderDetails() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>
-                          <div className="order-details-product-cell">
-                            <div className="order-details-product-thumb order-details-product-thumb--sneakers" />
-                            <div>
-                              <strong>Selection NOVA</strong>
-                              <span>Articles de la commande</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>LOCAL</td>
-                        <td>{order.amount}</td>
-                        <td>{order.products}</td>
-                        <td>
-                          <strong>{order.amount}</strong>
-                        </td>
-                      </tr>
+                      {order.items.length > 0 ? (
+                        order.items.map((item) => (
+                          <tr key={item.id}>
+                            <td>
+                              <div className="order-details-product-cell">
+                                <div className="order-details-product-thumb order-details-product-thumb--sneakers" />
+                                <div>
+                                  <strong>{item.product_name}</strong>
+                                  <span>
+                                    {[item.size, item.color]
+                                      .filter(Boolean)
+                                      .join(' / ') || 'Article commande'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>{item.product_sku || '-'}</td>
+                            <td>{`${Number(item.unit_price || 0).toLocaleString('fr-FR')} DH`}</td>
+                            <td>{item.quantity}</td>
+                            <td>
+                              <strong>{`${Number(item.total_price || 0).toLocaleString('fr-FR')} DH`}</strong>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5">Aucun article trouve.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -332,7 +401,7 @@ export default function OrderDetails() {
                       <span />
                       <div>
                         <strong>Commande annulee</strong>
-                        <small>Action enregistree localement</small>
+                        <small>Action enregistree en base</small>
                       </div>
                     </div>
                   ) : null}
@@ -354,18 +423,18 @@ export default function OrderDetails() {
                     <strong>{order.customer}</strong>
                     <span>
                       <Mail size={14} strokeWidth={1.7} />
-                      client@nova.local
+                      {order.customerEmail || 'Email non renseigne'}
                     </span>
                     <span>
                       <Phone size={14} strokeWidth={1.7} />
-                      +212 6 61 23 45 67
+                      {order.customerPhone || 'Telephone non renseigne'}
                     </span>
                   </div>
                 </div>
                 <div className="order-details-customer-meta">
                   <div>
                     <UserRound size={16} strokeWidth={1.7} />
-                    <span>Client local NOVA</span>
+                    <span>Client NOVA</span>
                   </div>
                   <div>
                     <ReceiptText size={16} strokeWidth={1.7} />
@@ -382,8 +451,15 @@ export default function OrderDetails() {
                   <MapPin size={18} strokeWidth={1.8} />
                   <p>
                     <span>{order.customer}</span>
-                    <span>123 Avenue Mohammed V</span>
-                    <span>Casablanca, Maroc</span>
+                    <span>
+                      {order.shippingAddress?.address_line1 ||
+                        'Adresse non renseignee'}
+                    </span>
+                    <span>
+                      {[order.shippingAddress?.city, order.shippingAddress?.country]
+                        .filter(Boolean)
+                        .join(', ') || 'Ville non renseignee'}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -395,11 +471,15 @@ export default function OrderDetails() {
                 <div className="order-details-totals">
                   <div>
                     <span>Sous-total</span>
-                    <strong>{order.amount}</strong>
+                    <strong>{order.subtotal}</strong>
                   </div>
                   <div>
                     <span>Livraison</span>
-                    <strong>Incluse</strong>
+                    <strong>{order.shipping}</strong>
+                  </div>
+                  <div>
+                    <span>Remise</span>
+                    <strong>{order.discount}</strong>
                   </div>
                   <div className="order-details-totals__final">
                     <strong>Total</strong>

@@ -7,7 +7,7 @@ import {
   Tag,
   Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AdminSidebar from '../../components/layout/AdminSidebar'
@@ -15,43 +15,66 @@ import AdminHeader from '../../components/layout/AdminHeader'
 import StatCard from '../../components/admin/StatCard'
 import SalesChart from '../../components/admin/SalesChart'
 import StatusChart from '../../components/admin/StatusChart'
+import {
+  getAdminAnalytics,
+  getAdminApiErrorMessages,
+} from '../../services/adminService.js'
 
 const dateRanges = [
-  '1 sept. 2026 - 30 sept. 2026',
-  '1 oct. 2026 - 31 oct. 2026',
-  'Derniers 7 jours',
+  ['current_month', 'Mois en cours'],
+  ['last_7_days', 'Derniers 7 jours'],
+  ['all', 'Toutes les dates'],
 ]
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ')
+}
+
+function formatPrice(value) {
+  return `${formatNumber(value)} DH`
+}
 
 export default function Dashboard() {
   const [dateRangeIndex, setDateRangeIndex] = useState(0)
   const [chartPeriod, setChartPeriod] = useState('monthly')
-  const bestProducts = [
-    {
-      name: 'Baskets Nova Premium',
-      sales: '320 ventes',
-      price: '680 DH',
-    },
-    {
-      name: 'Sac Élise',
-      sales: '280 ventes',
-      price: '1 290 DH',
-    },
-    {
-      name: 'Pull en cachemire',
-      sales: '250 ventes',
-      price: '850 DH',
-    },
-    {
-      name: 'Montre Horizon',
-      sales: '190 ventes',
-      price: '1 490 DH',
-    },
-    {
-      name: 'Lunettes Solis',
-      sales: '150 ventes',
-      price: '550 DH',
-    },
-  ]
+  const [analytics, setAnalytics] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const selectedRange = dateRanges[dateRangeIndex][0]
+  const stats = analytics?.stats || {}
+  const latestOrders = analytics?.latestOrders || []
+  const bestProducts = analytics?.bestProducts || []
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadDashboard() {
+      setLoading(true)
+      setError('')
+
+      try {
+        const data = await getAdminAnalytics(selectedRange)
+
+        if (isActive) {
+          setAnalytics(data)
+        }
+      } catch (requestError) {
+        if (isActive) {
+          setError(getAdminApiErrorMessages(requestError).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadDashboard()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedRange])
 
   return (
     <div className="admin-layout">
@@ -61,12 +84,10 @@ export default function Dashboard() {
         <AdminHeader />
 
         <main className="admin-dashboard">
-          {/* HEADER */}
-
           <section className="dashboard-heading">
             <div>
               <p className="dashboard-welcome">
-                Bienvenue 👋
+                Bienvenue
               </p>
 
               <h1>Tableau de bord</h1>
@@ -88,58 +109,62 @@ export default function Dashboard() {
                 strokeWidth={1.8}
               />
 
-              <span>{dateRanges[dateRangeIndex]}</span>
+              <span>{dateRanges[dateRangeIndex][1]}</span>
 
               <span className="dashboard-date-filter__static" hidden>
-                1 sept. 2026 – 30 sept. 2026
+                Mois en cours
               </span>
 
               <span className="dashboard-date-filter__arrow">
-                ⌄
+                v
               </span>
             </button>
           </section>
 
-          {/* STATISTIQUES */}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des statistiques depuis la base de donnees...
+            </p>
+          ) : null}
+
+          {error ? (
+            <div className="product-form-alert product-form-alert--error">
+              {error}
+            </div>
+          ) : null}
 
           <section className="dashboard-stats">
             <StatCard
               icon={ShoppingCart}
-              value="1 248"
+              value={formatNumber(stats.ordersCount)}
               label="Commandes"
-              growth="+12%"
+              growth="DB"
             />
 
             <StatCard
               icon={Users}
-              value="8 532"
+              value={formatNumber(stats.customersCount)}
               label="Clients"
-              growth="+18%"
+              growth="DB"
             />
 
             <StatCard
               icon={Tag}
-              value="4 320"
+              value={formatNumber(stats.productsSold)}
               label="Produits vendus"
-              growth="+24%"
+              growth="DB"
             />
 
             <StatCard
               icon={FileText}
-              value="125 600 DH"
-              label="Chiffre d’affaires"
-              growth="+16%"
+              value={formatPrice(stats.revenue)}
+              label="Chiffre d'affaires"
+              growth="DB"
             />
           </section>
 
-          {/* CONTENT */}
-
           <section className="dashboard-grid">
-            {/* LEFT */}
-
             <div className="dashboard-left">
-              {/* VENTES */}
-
               <div className="dashboard-card dashboard-sales-card">
                 <div className="dashboard-card__header">
                   <h2>Ventes</h2>
@@ -148,12 +173,12 @@ export default function Dashboard() {
                     <div className="sales-card__legend">
                       <span>
                         <i className="legend-dot legend-dot--current" />
-                        Ce mois
+                        Periode actuelle
                       </span>
 
                       <span>
                         <i className="legend-dot legend-dot--previous" />
-                        Mois dernier
+                        Periode precedente
                       </span>
                     </div>
 
@@ -178,15 +203,16 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <SalesChart period={chartPeriod} />
+                <SalesChart
+                  period={chartPeriod}
+                  data={analytics?.salesChart}
+                />
               </div>
-
-              {/* DERNIERES COMMANDES */}
 
               <div className="dashboard-card latest-orders">
                 <div className="dashboard-card__header">
                   <h2>
-                    Dernières commandes
+                    Dernieres commandes
                   </h2>
 
                   <Link
@@ -212,216 +238,68 @@ export default function Dashboard() {
                     </thead>
 
                     <tbody>
-                      <tr>
-                        <td>#10024</td>
+                      {latestOrders.map((order) => (
+                        <tr key={order.rawId || order.id}>
+                          <td>{order.id}</td>
 
-                        <td>
-                          <div className="client-cell">
-                            <div className="client-avatar">
-                              YB
+                          <td>
+                            <div className="client-cell">
+                              <div className="client-avatar">
+                                {order.initials}
+                              </div>
+
+                              <span>{order.customer}</span>
                             </div>
+                          </td>
 
-                            <span>
-                              Yassine Benali
+                          <td>{order.products}</td>
+
+                          <td>{order.amount}</td>
+
+                          <td>
+                            <span className={`status-badge status-badge--${order.statusClass}`}>
+                              {order.status}
                             </span>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td>3 articles</td>
+                          <td>{order.date}</td>
 
-                        <td>1 290 DH</td>
+                          <td>
+                            <Link
+                              className="dashboard-row-action"
+                              to={`/admin/commandes/${String(
+                                order.rawId || order.id,
+                              ).replace('#', '')}`}
+                              aria-label={`Voir la commande ${order.id}`}
+                            >
+                              <MoreHorizontal size={18} strokeWidth={1.8} />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
 
-                        <td>
-                          <span className="status-badge status-badge--confirmed">
-                            Confirmée
-                          </span>
-                        </td>
-
-                        <td>30 sept. 2026</td>
-
-                        <td>
-                          <Link
-                            className="dashboard-row-action"
-                            to="/admin/commandes/10024"
-                            aria-label="Voir la commande 10024"
-                          >
-                            <MoreHorizontal size={18} strokeWidth={1.8} />
-                          </Link>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td>#10023</td>
-
-                        <td>
-                          <div className="client-cell">
-                            <div className="client-avatar">
-                              SA
-                            </div>
-
-                            <span>
-                              Sara El Amrani
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>1 article</td>
-
-                        <td>850 DH</td>
-
-                        <td>
-                          <span className="status-badge status-badge--preparing">
-                            En préparation
-                          </span>
-                        </td>
-
-                        <td>29 sept. 2026</td>
-
-                        <td>
-                          <Link
-                            className="dashboard-row-action"
-                            to="/admin/commandes/10023"
-                            aria-label="Voir la commande 10023"
-                          >
-                            <MoreHorizontal size={18} strokeWidth={1.8} />
-                          </Link>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td>#10022</td>
-
-                        <td>
-                          <div className="client-cell">
-                            <div className="client-avatar">
-                              OH
-                            </div>
-
-                            <span>
-                              Omar Haddad
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>2 articles</td>
-
-                        <td>1 490 DH</td>
-
-                        <td>
-                          <span className="status-badge status-badge--shipped">
-                            Expédiée
-                          </span>
-                        </td>
-
-                        <td>29 sept. 2026</td>
-
-                        <td>
-                          <Link
-                            className="dashboard-row-action"
-                            to="/admin/commandes/10022"
-                            aria-label="Voir la commande 10022"
-                          >
-                            <MoreHorizontal size={18} strokeWidth={1.8} />
-                          </Link>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td>#10021</td>
-
-                        <td>
-                          <div className="client-cell">
-                            <div className="client-avatar">
-                              LK
-                            </div>
-
-                            <span>
-                              Lina Kettani
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>1 article</td>
-
-                        <td>680 DH</td>
-
-                        <td>
-                          <span className="status-badge status-badge--delivered">
-                            Livrée
-                          </span>
-                        </td>
-
-                        <td>28 sept. 2026</td>
-
-                        <td>
-                          <Link
-                            className="dashboard-row-action"
-                            to="/admin/commandes/10021"
-                            aria-label="Voir la commande 10021"
-                          >
-                            <MoreHorizontal size={18} strokeWidth={1.8} />
-                          </Link>
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td>#10020</td>
-
-                        <td>
-                          <div className="client-cell">
-                            <div className="client-avatar">
-                              MR
-                            </div>
-
-                            <span>
-                              Mehdi Rachid
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>4 articles</td>
-
-                        <td>2 350 DH</td>
-
-                        <td>
-                          <span className="status-badge status-badge--confirmed">
-                            Confirmée
-                          </span>
-                        </td>
-
-                        <td>27 sept. 2026</td>
-
-                        <td>
-                          <Link
-                            className="dashboard-row-action"
-                            to="/admin/commandes/10020"
-                            aria-label="Voir la commande 10020"
-                          >
-                            <MoreHorizontal size={18} strokeWidth={1.8} />
-                          </Link>
-                        </td>
-                      </tr>
+                      {latestOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan="7">Aucune commande trouvee.</td>
+                        </tr>
+                      ) : null}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT */}
-
             <aside className="dashboard-right">
-              {/* REPARTITION */}
-
               <div className="dashboard-card sales-distribution">
                 <h2>
-                  Répartition des ventes
+                  Repartition des ventes
                 </h2>
 
                 <div className="sales-distribution__content">
                   <div className="donut-chart">
                     <div className="donut-chart__center">
                       <strong>
-                        125 600 DH
+                        {formatPrice(stats.revenue)}
                       </strong>
 
                       <span>Total</span>
@@ -432,34 +310,14 @@ export default function Dashboard() {
                     <div>
                       <span>
                         <i className="legend-dot legend-dot--web" />
-                        Site web
+                        Non disponible
                       </span>
 
-                      <strong>68%</strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        <i className="legend-dot legend-dot--mobile" />
-                        Mobile
-                      </span>
-
-                      <strong>22%</strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        <i className="legend-dot legend-dot--other" />
-                        Autre
-                      </span>
-
-                      <strong>10%</strong>
+                      <strong>0%</strong>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* STATUS CHART */}
 
               <div className="dashboard-card order-status-card">
                 <div className="dashboard-card__header">
@@ -475,10 +333,8 @@ export default function Dashboard() {
                   </Link>
                 </div>
 
-                <StatusChart />
+                <StatusChart data={analytics?.statusChart || []} />
               </div>
-
-              {/* BEST PRODUCTS */}
 
               <div className="dashboard-card best-products-card">
                 <div className="dashboard-card__header">
@@ -495,35 +351,53 @@ export default function Dashboard() {
                 </div>
 
                 <div className="best-products-list">
-                  {bestProducts.map(
-                    (product) => (
-                      <div
-                        className="best-product-item"
-                        key={product.name}
-                      >
-                        <div className="best-product-item__image">
-                          <ClipboardList
-                            size={19}
-                            strokeWidth={1.6}
-                          />
-                        </div>
-
-                        <div className="best-product-item__info">
-                          <strong>
-                            {product.name}
-                          </strong>
-
-                          <span>
-                            {product.sales}
-                          </span>
-                        </div>
-
-                        <strong className="best-product-item__price">
-                          {product.price}
-                        </strong>
+                  {bestProducts.map((product) => (
+                    <div
+                      className="best-product-item"
+                      key={product.id || product.name}
+                    >
+                      <div className="best-product-item__image">
+                        <ClipboardList
+                          size={19}
+                          strokeWidth={1.6}
+                        />
                       </div>
-                    ),
-                  )}
+
+                      <div className="best-product-item__info">
+                        <strong>
+                          {product.name}
+                        </strong>
+
+                        <span>
+                          {formatNumber(product.sales)} ventes
+                        </span>
+                      </div>
+
+                      <strong className="best-product-item__price">
+                        {formatPrice(product.price)}
+                      </strong>
+                    </div>
+                  ))}
+
+                  {bestProducts.length === 0 ? (
+                    <div className="best-product-item">
+                      <div className="best-product-item__image">
+                        <ClipboardList
+                          size={19}
+                          strokeWidth={1.6}
+                        />
+                      </div>
+
+                      <div className="best-product-item__info">
+                        <strong>Aucun produit vendu</strong>
+                        <span>Base de donnees</span>
+                      </div>
+
+                      <strong className="best-product-item__price">
+                        0 DH
+                      </strong>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </aside>

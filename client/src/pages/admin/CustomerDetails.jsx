@@ -14,51 +14,16 @@ import {
   UserRound,
   WalletCards,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import {
-  getCustomers,
-  saveCustomers,
+  getAdminApiErrorMessages,
+  getCustomer,
+  updateCustomerStatus as persistCustomerStatus,
 } from '../../services/adminService.js'
-
-const recentOrders = [
-  {
-    id: '10024',
-    date: '30 sept. 2026',
-    products: '3 articles',
-    amount: '1 290 DH',
-    payment: 'Payee',
-    status: 'En attente',
-    statusClass: 'pending',
-  },
-  {
-    id: '10019',
-    date: '26 sept. 2026',
-    products: '2 articles',
-    amount: '980 DH',
-    payment: 'Payee',
-    status: 'Confirmee',
-    statusClass: 'confirmed',
-  },
-  {
-    id: '10012',
-    date: '18 sept. 2026',
-    products: '1 article',
-    amount: '680 DH',
-    payment: 'Payee',
-    status: 'Livree',
-    statusClass: 'delivered',
-  },
-]
-
-const activityItems = [
-  'Commande #10024 creee',
-  'Paiement carte valide',
-  'Adresse de livraison confirmee',
-]
 
 const tagPool = [
   'VIP',
@@ -90,15 +55,79 @@ function formatAmount(amount) {
 export default function CustomerDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState(() => getCustomers())
-  const customer = useMemo(
-    () =>
-      customers.find(
-        (currentCustomer) => String(currentCustomer.id) === String(id),
-      ),
-    [customers, id],
-  )
+  const [customer, setCustomer] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCustomer() {
+      setLoading(true)
+      setError('')
+
+      try {
+        const nextCustomer = await getCustomer(id)
+
+        if (isActive) {
+          setCustomer(nextCustomer)
+        }
+      } catch (requestError) {
+        if (isActive) {
+          setCustomer(null)
+          setError(getAdminApiErrorMessages(requestError).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadCustomer()
+
+    return () => {
+      isActive = false
+    }
+  }, [id])
+
+  const recentOrders = useMemo(
+    () => customer?.recentOrders || [],
+    [customer],
+  )
+
+  const activityItems = useMemo(
+    () =>
+      recentOrders.length > 0
+        ? recentOrders.slice(0, 3).map(
+            (order) =>
+              `Commande ${order.id} - ${order.status}`,
+          )
+        : ['Aucune activite commande recente'],
+    [recentOrders],
+  )
+
+  if (loading) {
+    return (
+      <div className="admin-layout">
+        <AdminSidebar />
+
+        <div className="admin-main">
+          <AdminHeader />
+
+          <main className="admin-dashboard customer-details-page">
+            <section className="customer-details-heading">
+              <div>
+                <h1>Chargement du client</h1>
+                <p>Lecture des donnees depuis la base.</p>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   if (!customer) {
     return (
@@ -112,7 +141,10 @@ export default function CustomerDetails() {
             <section className="customer-details-heading">
               <div>
                 <h1>Client introuvable</h1>
-                <p>Aucun client local ne correspond a cet identifiant.</p>
+                <p>
+                  {error ||
+                    'Aucun client en base ne correspond a cet identifiant.'}
+                </p>
               </div>
               <Link
                 className="customer-details-status-toggle"
@@ -127,32 +159,34 @@ export default function CustomerDetails() {
     )
   }
 
-  const updateCustomer = (nextPatch) => {
-    const nextCustomers = customers.map((currentCustomer) =>
-      currentCustomer.id === customer.id
-        ? {
-            ...currentCustomer,
-            ...nextPatch,
-          }
-        : currentCustomer,
-    )
+  const updateCustomerStatus = async (nextStatus) => {
+    setError('')
 
-    setCustomers(nextCustomers)
-    saveCustomers(nextCustomers)
-    setNotice('Client mis a jour localement.')
+    try {
+      const savedCustomer = await persistCustomerStatus(
+        customer.id,
+        nextStatus,
+      )
+
+      setCustomer((currentCustomer) => ({
+        ...currentCustomer,
+        ...savedCustomer,
+        recentOrders: currentCustomer.recentOrders,
+        addresses: currentCustomer.addresses,
+      }))
+      setNotice('Client mis a jour en base.')
+    } catch (requestError) {
+      setNotice('')
+      setError(getAdminApiErrorMessages(requestError).join(' '))
+    }
   }
 
   const isActive = customer.statusType === 'active'
 
   const toggleTag = (tagName) => {
-    const tags = customer.tags || []
-    const nextTags = tags.includes(tagName)
-      ? tags.filter((tag) => tag !== tagName)
-      : [...tags, tagName]
-
-    updateCustomer({
-      tags: nextTags,
-    })
+    setNotice(
+      `Le tag "${tagName}" n'est pas persiste par le schema client actuel.`,
+    )
   }
 
   return (
@@ -195,10 +229,7 @@ export default function CustomerDetails() {
               }
               type="button"
               onClick={() =>
-                updateCustomer({
-                  statusType: isActive ? 'inactive' : 'active',
-                  status: isActive ? 'Inactif' : 'Actif',
-                })
+                updateCustomerStatus(isActive ? 'inactive' : 'active')
               }
             >
               <UserRound size={17} strokeWidth={1.8} />
@@ -207,6 +238,11 @@ export default function CustomerDetails() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {error ? (
+            <div className="product-form-alert product-form-alert--error">
+              {error}
+            </div>
+          ) : null}
 
           <section className="customer-details-profile-grid">
             <div className="dashboard-card customer-details-profile-card">
@@ -267,7 +303,7 @@ export default function CustomerDetails() {
               />
               <CustomerStatCard
                 icon={ReceiptText}
-                value="#10024"
+                value={recentOrders[0]?.id || 'Aucune'}
                 label="Derniere commande"
               />
             </div>
@@ -298,7 +334,7 @@ export default function CustomerDetails() {
                       {recentOrders.map((order) => (
                         <tr key={order.id}>
                           <td>
-                            <strong>#{order.id}</strong>
+                            <strong>{order.id}</strong>
                           </td>
                           <td>{order.date}</td>
                           <td>{order.products}</td>
@@ -317,7 +353,11 @@ export default function CustomerDetails() {
                               type="button"
                               aria-label={`Voir la commande #${order.id}`}
                               onClick={() =>
-                                navigate(`/admin/commandes/${order.id}`)
+                                navigate(
+                                  `/admin/commandes/${String(
+                                    order.rawId || order.id,
+                                  ).replace('#', '')}`,
+                                )
                               }
                             >
                               <Eye size={17} strokeWidth={1.8} />
@@ -325,6 +365,11 @@ export default function CustomerDetails() {
                           </td>
                         </tr>
                       ))}
+                      {recentOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan="7">Aucune commande trouvee.</td>
+                        </tr>
+                      ) : null}
                     </tbody>
                   </table>
                 </div>
@@ -340,7 +385,12 @@ export default function CustomerDetails() {
                   <MapPin size={18} strokeWidth={1.8} />
                   <p>
                     <strong>{customer.name}</strong>
-                    <span>{customer.city}, Maroc</span>
+                    <span>{customer.addresses[0]?.address_line1 || customer.city}</span>
+                    <span>
+                      {[customer.addresses[0]?.city || customer.city, customer.country]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
                     <span>{customer.phone}</span>
                   </p>
                 </div>
@@ -374,11 +424,12 @@ export default function CustomerDetails() {
                 <label className="customer-details-note">
                   <MessageSquareText size={17} strokeWidth={1.8} />
                   <textarea
-                    value={customer.note || ''}
-                    onChange={(event) =>
-                      updateCustomer({
-                        note: event.target.value,
-                      })
+                    value="Notes client non disponibles dans le schema actuel."
+                    readOnly
+                    onFocus={() =>
+                      setNotice(
+                        'Notes client non persistantes dans le schema actuel.',
+                      )
                     }
                   />
                 </label>

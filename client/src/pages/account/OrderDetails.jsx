@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 
 import AccountSidebar from '../../components/layout/AccountSidebar.jsx'
-import { products as catalogProducts } from '../shop/catalogData.js'
 import orderService from '../../services/orderService.js'
 
 
@@ -102,17 +101,6 @@ const getStatusInfo = (status) => {
         key: 'active',
       }
   }
-}
-
-
-const getCatalogProduct = (slug) => {
-  if (!slug) {
-    return null
-  }
-
-  return catalogProducts.find(
-    (product) => product.id === slug,
-  )
 }
 
 
@@ -404,9 +392,6 @@ function OrderDetails() {
 
   const displayProducts =
     items.map((item) => {
-      const catalogProduct =
-        getCatalogProduct(item.slug)
-
       const variantParts = [
         item.color,
         item.size,
@@ -419,20 +404,15 @@ function OrderDetails() {
           item.product_id,
 
         slug:
-          item.slug ||
-          catalogProduct?.id,
+          item.slug || '',
 
         name:
           item.product_name ||
-          catalogProduct?.name ||
           'Produit NOVA',
 
-        image:
-          catalogProduct?.image ||
-          null,
+        image: null,
 
         imageAlt:
-          catalogProduct?.imageAlt ||
           item.product_name ||
           'Produit NOVA',
 

@@ -12,7 +12,7 @@ export default function CategoryCreate() {
 
         <CategoryForm
           title="Ajouter une categorie"
-          subtitle="Creez une categorie locale pour organiser le catalogue."
+          subtitle="Creez une categorie en base pour organiser le catalogue."
           mode="create"
         />
       </div>

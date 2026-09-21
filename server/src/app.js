@@ -41,6 +41,18 @@ const promotionRoutes =
 const paymentRoutes =
   require('./routes/payment.routes')
 
+const settingsRoutes =
+  require('./routes/settings.routes')
+
+const analyticsRoutes =
+  require('./routes/analytics.routes')
+
+const messageRoutes =
+  require('./routes/message.routes')
+
+const adminRoutes =
+  require('./routes/admin.routes')
+
 const {
   notFoundHandler,
   errorHandler,
@@ -183,6 +195,26 @@ app.use(
 app.use(
   '/api/payments',
   paymentRoutes,
+)
+
+app.use(
+  '/api/settings',
+  settingsRoutes,
+)
+
+app.use(
+  '/api/analytics',
+  analyticsRoutes,
+)
+
+app.use(
+  '/api/messages',
+  messageRoutes,
+)
+
+app.use(
+  '/api/admin',
+  adminRoutes,
 )
 
 

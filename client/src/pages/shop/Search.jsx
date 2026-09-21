@@ -17,34 +17,10 @@ import ProductGrid from '../../components/product/ProductGrid.jsx'
 
 import productService from '../../services/productService.js'
 
-import {
-  products as localProducts,
-} from './catalogData.js'
-
 function formatPrice(value) {
   return `${Number(value).toLocaleString(
     'fr-FR',
   )} DH`
-}
-
-function matchesLocalSearch(product, query) {
-  const normalizedQuery = query.trim().toLowerCase()
-
-  if (!normalizedQuery) {
-    return false
-  }
-
-  return [
-    product.name,
-    product.description,
-    product.department,
-    product.group,
-    product.categoryName,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-    .includes(normalizedQuery)
 }
 
 function Search() {
@@ -124,19 +100,8 @@ function Search() {
   }, [query])
 
   const results = useMemo(() => {
-    const normalizedDatabaseResults = databaseProducts
+    return databaseProducts
       .map((databaseProduct) => {
-        const localProduct =
-          localProducts.find(
-            (product) =>
-              product.id ===
-              databaseProduct.slug,
-          )
-
-        if (!localProduct) {
-          return null
-        }
-
         const priceValue =
           Number(
             databaseProduct.price,
@@ -165,7 +130,11 @@ function Search() {
             : undefined
 
         return {
-          ...localProduct,
+          id:
+            databaseProduct.slug,
+
+          slug:
+            databaseProduct.slug,
 
           databaseId:
             databaseProduct.id,
@@ -176,7 +145,15 @@ function Search() {
           description:
             databaseProduct.short_description ||
             databaseProduct.description ||
-            localProduct.description,
+            '',
+
+          image:
+            databaseProduct.image_url || '',
+
+          imageAlt:
+            databaseProduct.image_alt ||
+            databaseProduct.name ||
+            'Produit NOVA',
 
           priceValue,
 
@@ -224,22 +201,26 @@ function Search() {
             databaseProduct.category_id,
 
           categoryName:
-            databaseProduct.category_name,
+            databaseProduct.category_name || '',
 
           categorySlug:
-            databaseProduct.category_slug,
+            databaseProduct.category_slug || '',
+
+          department:
+            databaseProduct.category_name || '',
+
+          group:
+            databaseProduct.category_name || '',
+
+          isNew:
+            Boolean(databaseProduct.featured),
+
+          rating: 0,
+
+          reviews: 0,
         }
       })
-      .filter(Boolean)
-
-    if (normalizedDatabaseResults.length > 0) {
-      return normalizedDatabaseResults
-    }
-
-    return localProducts.filter((product) =>
-      matchesLocalSearch(product, query),
-    )
-  }, [databaseProducts, query])
+  }, [databaseProducts])
 
   return (
     <main className="search-page">
@@ -338,6 +319,12 @@ function Search() {
           </p>
         )}
 
+        {error ? (
+          <p className="catalog-status" role="status">
+            Impossible d'effectuer la recherche sur le serveur.
+          </p>
+        ) : null}
+
         {loading ? (
           <p>
             Recherche des
@@ -345,18 +332,10 @@ function Search() {
           </p>
         ) : results.length >
           0 ? (
-          <>
-            {error ? (
-              <p className="catalog-status" role="status">
-                Recherche locale affichee, API momentanement indisponible.
-              </p>
-            ) : null}
-
-            <ProductGrid
-              products={results}
-              variant="catalog"
-            />
-          </>
+          <ProductGrid
+            products={results}
+            variant="catalog"
+          />
         ) : query.trim() ? (
           <div
             className="catalog-empty"

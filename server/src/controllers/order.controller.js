@@ -1,4 +1,7 @@
 const pool = require('../config/db')
+const {
+  getShippingSettings,
+} = require('../services/settings.service')
 
 function generateOrderNumber() {
   const timestamp = Date.now()
@@ -7,6 +10,89 @@ function generateOrderNumber() {
   )
 
   return `NOVA-${timestamp}-${random}`
+}
+
+const fallbackOrderStatuses = [
+  'pending',
+  'confirmed',
+  'processing',
+  'preparing',
+  'shipped',
+  'delivered',
+  'cancelled',
+]
+
+function parseNumericId(value) {
+  const id =
+    Number(value)
+
+  return Number.isInteger(id) &&
+    id > 0
+    ? id
+    : null
+}
+
+async function getOrderStatusValues(
+  connection = pool,
+) {
+  const [rows] =
+    await connection.query(
+      `
+      SELECT COLUMN_TYPE
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'orders'
+        AND COLUMN_NAME = 'status'
+      LIMIT 1
+      `,
+    )
+
+  const columnType =
+    rows[0]?.COLUMN_TYPE || ''
+
+  const matches =
+    Array.from(
+      columnType.matchAll(
+        /'([^']+)'/g,
+      ),
+    )
+
+  const statuses =
+    matches.map((match) => match[1])
+
+  return statuses.length > 0
+    ? statuses
+    : fallbackOrderStatuses
+}
+
+function normalizeOrderStatus(
+  status,
+  allowedStatuses,
+) {
+  const requestedStatus =
+    String(status || '')
+      .trim()
+      .toLowerCase()
+
+  if (
+    requestedStatus === 'preparing' &&
+    allowedStatuses.includes(
+      'processing',
+    )
+  ) {
+    return 'processing'
+  }
+
+  if (
+    requestedStatus === 'processing' &&
+    allowedStatuses.includes(
+      'preparing',
+    )
+  ) {
+    return 'preparing'
+  }
+
+  return requestedStatus
 }
 
 async function getOrderItems(
@@ -40,6 +126,52 @@ async function getOrderItems(
   return items
 }
 
+async function getAdminOrderByIdRow(
+  connection,
+  orderId,
+) {
+  const [rows] =
+    await connection.query(
+      `
+      SELECT
+        o.id,
+        o.user_id,
+        o.order_number,
+        o.status,
+        o.subtotal,
+        o.shipping_cost,
+        o.discount,
+        o.total,
+        o.payment_method,
+        o.payment_status,
+        o.shipping_address,
+        o.notes,
+        o.created_at,
+        o.updated_at,
+
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        u.city,
+        u.country,
+        u.is_active
+
+      FROM orders o
+
+      INNER JOIN users u
+        ON u.id = o.user_id
+
+      WHERE o.id = ?
+
+      LIMIT 1
+      `,
+      [orderId],
+    )
+
+  return rows[0] || null
+}
+
 /*
   =========================
   PROMOTION
@@ -52,16 +184,36 @@ async function calculatePromotion({
   subtotal,
   cartItems,
   deliveryMethod,
+  shippingSettings,
 }) {
+  const getConfiguredShippingCost = (
+    promotionFreeShipping = false,
+  ) => {
+    if (promotionFreeShipping) {
+      return 0
+    }
+
+    const freeStandardShipping =
+      deliveryMethod === 'standard' &&
+      shippingSettings.freeFrom > 0 &&
+      Number(subtotal) >= shippingSettings.freeFrom
+
+    if (freeStandardShipping) {
+      return 0
+    }
+
+    return deliveryMethod === 'express'
+      ? shippingSettings.express
+      : shippingSettings.standard
+  }
+
   if (!code) {
     return {
       promotion: null,
       discount: 0,
       freeShipping: false,
       shippingCost:
-        deliveryMethod === 'express'
-          ? 50
-          : 0,
+        getConfiguredShippingCost(),
     }
   }
 
@@ -75,9 +227,7 @@ async function calculatePromotion({
       discount: 0,
       freeShipping: false,
       shippingCost:
-        deliveryMethod === 'express'
-          ? 50
-          : 0,
+        getConfiguredShippingCost(),
     }
   }
 
@@ -325,12 +475,9 @@ async function calculatePromotion({
     ) / 100
 
   const shippingCost =
-    freeShipping
-      ? 0
-      : deliveryMethod ===
-          'express'
-        ? 50
-        : 0
+    getConfiguredShippingCost(
+      freeShipping,
+    )
 
   return {
     promotion,
@@ -651,6 +798,13 @@ async function createOrder(
           p.price AS product_price,
           p.status AS product_status,
           p.stock AS product_stock,
+          p.category_id,
+          c.status AS category_status,
+          (
+            SELECT COUNT(*)
+            FROM product_variants
+            WHERE product_variants.product_id = p.id
+          ) AS variant_count,
 
           pv.size,
           pv.color,
@@ -661,6 +815,9 @@ async function createOrder(
 
         INNER JOIN products p
           ON p.id = ci.product_id
+
+        LEFT JOIN categories c
+          ON c.id = p.category_id
 
         LEFT JOIN product_variants pv
           ON pv.id = ci.variant_id
@@ -699,7 +856,11 @@ async function createOrder(
     ) {
       if (
         item.product_status !==
-        'active'
+          'active' ||
+        (
+          item.category_id !== null &&
+          item.category_status !== 'active'
+        )
       ) {
         await connection.rollback()
         transactionStarted =
@@ -723,6 +884,21 @@ async function createOrder(
 
         res.status(400).json({
           message: `La variante de ${item.product_name} n’est plus disponible.`,
+        })
+        return
+      }
+
+      if (
+        item.variant_id ===
+          null &&
+        Number(item.variant_count || 0) > 0
+      ) {
+        await connection.rollback()
+        transactionStarted =
+          false
+
+        res.status(400).json({
+          message: `Veuillez selectionner une variante pour ${item.product_name}.`,
         })
         return
       }
@@ -776,6 +952,11 @@ async function createOrder(
         subtotal * 100,
       ) / 100
 
+    const shippingSettings =
+      await getShippingSettings(
+        connection,
+      )
+
     /*
       =========================
       PROMOTION
@@ -789,6 +970,7 @@ async function createOrder(
         subtotal,
         cartItems,
         deliveryMethod,
+        shippingSettings,
       })
 
     const discount =
@@ -948,29 +1130,57 @@ async function createOrder(
         item.variant_id !==
         null
       ) {
-        await connection.query(
+        const [stockUpdate] =
+          await connection.query(
           `
           UPDATE product_variants
           SET stock = stock - ?
           WHERE id = ?
+            AND stock >= ?
           `,
           [
             item.quantity,
             item.variant_id,
+            item.quantity,
           ],
         )
+
+        if (stockUpdate.affectedRows !== 1) {
+          throw Object.assign(
+            new Error(
+              `Stock insuffisant pour ${item.product_name}.`,
+            ),
+            {
+              statusCode: 400,
+            },
+          )
+        }
       } else {
-        await connection.query(
+        const [stockUpdate] =
+          await connection.query(
           `
           UPDATE products
           SET stock = stock - ?
           WHERE id = ?
+            AND stock >= ?
           `,
           [
             item.quantity,
             item.product_id,
+            item.quantity,
           ],
         )
+
+        if (stockUpdate.affectedRows !== 1) {
+          throw Object.assign(
+            new Error(
+              `Stock insuffisant pour ${item.product_name}.`,
+            ),
+            {
+              statusCode: 400,
+            },
+          )
+        }
       }
     }
 
@@ -1119,8 +1329,225 @@ async function createOrder(
   }
 }
 
+async function getAdminOrders(
+  req,
+  res,
+  next,
+) {
+  try {
+    const [orders] =
+      await pool.query(
+        `
+        SELECT
+          o.id,
+          o.user_id,
+          o.order_number,
+          o.status,
+          o.subtotal,
+          o.shipping_cost,
+          o.discount,
+          o.total,
+          o.payment_method,
+          o.payment_status,
+          o.shipping_address,
+          o.notes,
+          o.created_at,
+          o.updated_at,
+
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.phone,
+          u.city,
+          u.country,
+          u.is_active,
+
+          COUNT(oi.id) AS item_lines,
+          COALESCE(SUM(oi.quantity), 0) AS item_quantity
+
+        FROM orders o
+
+        INNER JOIN users u
+          ON u.id = o.user_id
+
+        LEFT JOIN order_items oi
+          ON oi.order_id = o.id
+
+        GROUP BY
+          o.id,
+          o.user_id,
+          o.order_number,
+          o.status,
+          o.subtotal,
+          o.shipping_cost,
+          o.discount,
+          o.total,
+          o.payment_method,
+          o.payment_status,
+          o.shipping_address,
+          o.notes,
+          o.created_at,
+          o.updated_at,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.phone,
+          u.city,
+          u.country,
+          u.is_active
+
+        ORDER BY
+          o.created_at DESC,
+          o.id DESC
+        `,
+      )
+
+    res.json({
+      orders,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function getAdminOrderById(
+  req,
+  res,
+  next,
+) {
+  try {
+    const orderId =
+      parseNumericId(req.params.id)
+
+    if (!orderId) {
+      return res.status(400).json({
+        message:
+          'Identifiant de commande invalide.',
+      })
+    }
+
+    const order =
+      await getAdminOrderByIdRow(
+        pool,
+        orderId,
+      )
+
+    if (!order) {
+      return res.status(404).json({
+        message:
+          'Commande introuvable.',
+      })
+    }
+
+    const items =
+      await getOrderItems(
+        pool,
+        orderId,
+      )
+
+    res.json({
+      order: {
+        ...order,
+        items,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function updateAdminOrderStatus(
+  req,
+  res,
+  next,
+) {
+  try {
+    const orderId =
+      parseNumericId(req.params.id)
+
+    if (!orderId) {
+      return res.status(400).json({
+        message:
+          'Identifiant de commande invalide.',
+      })
+    }
+
+    const allowedStatuses =
+      await getOrderStatusValues()
+
+    const nextStatus =
+      normalizeOrderStatus(
+        req.body?.status,
+        allowedStatuses,
+      )
+
+    if (
+      !allowedStatuses.includes(
+        nextStatus,
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          'Statut de commande invalide.',
+        allowedStatuses,
+      })
+    }
+
+    const existingOrder =
+      await getAdminOrderByIdRow(
+        pool,
+        orderId,
+      )
+
+    if (!existingOrder) {
+      return res.status(404).json({
+        message:
+          'Commande introuvable.',
+      })
+    }
+
+    await pool.query(
+      `
+      UPDATE orders
+      SET status = ?
+      WHERE id = ?
+      `,
+      [
+        nextStatus,
+        orderId,
+      ],
+    )
+
+    const order =
+      await getAdminOrderByIdRow(
+        pool,
+        orderId,
+      )
+
+    const items =
+      await getOrderItems(
+        pool,
+        orderId,
+      )
+
+    res.json({
+      message:
+        'Statut de commande mis a jour.',
+      order: {
+        ...order,
+        items,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getOrders,
   getOrderById,
   createOrder,
+  getAdminOrders,
+  getAdminOrderById,
+  updateAdminOrderStatus,
 }

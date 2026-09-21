@@ -271,7 +271,19 @@ async function addCartItem(
             slug,
             price,
             stock,
-            status
+            status,
+            category_id,
+            (
+              SELECT status
+              FROM categories
+              WHERE categories.id = products.category_id
+              LIMIT 1
+            ) AS category_status,
+            (
+              SELECT COUNT(*)
+              FROM product_variants
+              WHERE product_variants.product_id = products.id
+            ) AS variant_count
           FROM products
           WHERE id = ?
           LIMIT 1
@@ -294,13 +306,29 @@ async function addCartItem(
 
     if (
       product.status !==
-      'active'
+        'active' ||
+      (
+        product.category_id !== null &&
+        product.category_status !== 'active'
+      )
     ) {
       await connection.rollback()
 
       return res.status(400).json({
         message:
           'Ce produit n’est pas disponible.',
+      })
+    }
+
+    if (
+      variantId === null &&
+      Number(product.variant_count || 0) > 0
+    ) {
+      await connection.rollback()
+
+      return res.status(400).json({
+        message:
+          'Veuillez selectionner une variante de produit.',
       })
     }
 

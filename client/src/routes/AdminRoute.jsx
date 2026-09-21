@@ -25,7 +25,7 @@ function AdminRouteLoading() {
 }
 
 export default function AdminRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, user } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -38,6 +38,15 @@ export default function AdminRoute({ children }) {
         to="/connexion"
         replace
         state={{ from: location }}
+      />
+    )
+  }
+
+  if (user?.role !== 'admin') {
+    return (
+      <Navigate
+        to="/"
+        replace
       />
     )
   }

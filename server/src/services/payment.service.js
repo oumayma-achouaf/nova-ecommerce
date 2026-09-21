@@ -85,5 +85,6 @@ module.exports = {
   PaymentProviderNotConfiguredError,
   PaymentWebhookNotConfiguredError,
   createHostedCardPaymentSession,
+  hasHostedCardProvider,
   verifyPaymentWebhook,
 }

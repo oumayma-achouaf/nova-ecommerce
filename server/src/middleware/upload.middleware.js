@@ -7,21 +7,146 @@ const avatarsDirectory = path.join(
   '../../uploads/avatars',
 )
 
-if (!fs.existsSync(avatarsDirectory)) {
-  fs.mkdirSync(avatarsDirectory, {
-    recursive: true,
+const productsDirectory = path.join(
+  __dirname,
+  '../../uploads/products',
+)
+
+const categoriesDirectory = path.join(
+  __dirname,
+  '../../uploads/categories',
+)
+
+const messagesDirectory = path.join(
+  __dirname,
+  '../../uploads/messages',
+)
+
+const scopedUploadDirectories = {
+  products: productsDirectory,
+  categories: categoriesDirectory,
+  messages: messagesDirectory,
+}
+
+const uploadDirectories = [
+  avatarsDirectory,
+  productsDirectory,
+  categoriesDirectory,
+  messagesDirectory,
+]
+
+const allowedMimeTypes = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]
+
+for (const directory of uploadDirectories) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, {
+      recursive: true,
+    })
+  }
+}
+
+function getSafeExtension(file) {
+  const mimeExtensions = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+  }
+
+  return (
+    mimeExtensions[file.mimetype] ||
+    path.extname(file.originalname).toLowerCase()
+  )
+}
+
+function makeSafeFilename(prefix, file) {
+  const randomPart =
+    Math.random()
+      .toString(36)
+      .slice(2, 10)
+
+  return `${prefix}-${Date.now()}-${randomPart}${getSafeExtension(file)}`
+}
+
+function ensureUploadDirectory(directory) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, {
+      recursive: true,
+    })
+  }
+}
+
+function createImageStorage({
+  directory,
+  prefix,
+}) {
+  return multer.diskStorage({
+    destination: (
+      _req,
+      _file,
+      callback,
+    ) => {
+      ensureUploadDirectory(directory)
+
+      callback(
+        null,
+        directory,
+      )
+    },
+
+    filename: (
+      req,
+      file,
+      callback,
+    ) => {
+      const resolvedPrefix =
+        typeof prefix === 'function'
+          ? prefix(req, file)
+          : prefix
+
+      callback(
+        null,
+        makeSafeFilename(
+          resolvedPrefix,
+          file,
+        ),
+      )
+    },
   })
 }
 
-const storage = multer.diskStorage({
+const adminImageStorage = multer.diskStorage({
   destination: (
     req,
-    file,
+    _file,
     callback,
   ) => {
+    const scope =
+      String(req.params.scope || '').trim()
+
+    const directory =
+      scopedUploadDirectories[scope]
+
+    if (!directory) {
+      const error =
+        new Error(
+          'Type de dossier image invalide.',
+        )
+
+      error.statusCode = 400
+
+      callback(error)
+      return
+    }
+
+    ensureUploadDirectory(directory)
+
     callback(
       null,
-      avatarsDirectory,
+      directory,
     )
   },
 
@@ -30,30 +155,29 @@ const storage = multer.diskStorage({
     file,
     callback,
   ) => {
-    const extension =
-      path.extname(
-        file.originalname,
-      )
-        .toLowerCase()
+    const scope =
+      String(req.params.scope || 'admin')
 
-    const safeName =
-      `avatar-${req.user.id}-${Date.now()}${extension}`
+    const userId =
+      req.user?.id || 'system'
 
     callback(
       null,
-      safeName,
+      makeSafeFilename(
+        `${scope}-${userId}`,
+        file,
+      ),
     )
   },
 })
 
-const allowedMimeTypes = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]
+const avatarStorage = createImageStorage({
+  directory: avatarsDirectory,
+  prefix: (req) => `avatar-${req.user.id}`,
+})
 
 const fileFilter = (
-  req,
+  _req,
   file,
   callback,
 ) => {
@@ -64,7 +188,7 @@ const fileFilter = (
   ) {
     const error =
       new Error(
-        'Format d’image non autorisé. Utilisez JPG, PNG ou WebP.',
+        'Format d image non autorise. Utilisez JPG, PNG ou WebP.',
       )
 
     error.statusCode = 400
@@ -83,8 +207,39 @@ const fileFilter = (
   )
 }
 
+function removeUploadedFile(filePath) {
+  if (!filePath) {
+    return
+  }
+
+  const resolvedPath =
+    path.resolve(filePath)
+
+  const isInUploadDirectory =
+    uploadDirectories.some((directory) =>
+      resolvedPath.startsWith(
+        path.resolve(directory),
+      ),
+    )
+
+  if (!isInUploadDirectory) {
+    return
+  }
+
+  if (fs.existsSync(resolvedPath)) {
+    try {
+      fs.unlinkSync(resolvedPath)
+    } catch (error) {
+      console.error(
+        'Impossible de supprimer le fichier upload :',
+        error.message,
+      )
+    }
+  }
+}
+
 const uploadAvatar = multer({
-  storage,
+  storage: avatarStorage,
 
   limits: {
     fileSize: 5 * 1024 * 1024,
@@ -93,7 +248,21 @@ const uploadAvatar = multer({
   fileFilter,
 })
 
+const uploadAdminImages = multer({
+  storage: adminImageStorage,
+
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 4,
+  },
+
+  fileFilter,
+})
+
 module.exports = {
   uploadAvatar,
+  uploadAdminImages,
   avatarsDirectory,
+  scopedUploadDirectories,
+  removeUploadedFile,
 }

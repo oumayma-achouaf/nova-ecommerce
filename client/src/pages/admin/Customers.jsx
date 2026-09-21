@@ -12,15 +12,15 @@ import {
   UserRoundX,
   Users,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import {
+  getAdminApiErrorMessages,
   getCustomers,
-  getInitials,
-  saveCustomers,
+  updateCustomerStatus as persistCustomerStatus,
 } from '../../services/adminService.js'
 
 function AdminStatCard({
@@ -50,7 +50,7 @@ function AdminStatCard({
         </div>
         <div className="admin-listing-stat-card__bottom">
           <span>{label}</span>
-          {growth ? <small>session locale</small> : null}
+          {growth ? <small>base de donnees</small> : null}
         </div>
       </div>
     </div>
@@ -63,7 +63,9 @@ function formatAmount(amount) {
 
 export default function Customers() {
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState(() => getCustomers())
+  const [customers, setCustomers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [cityFilter, setCityFilter] = useState('all')
@@ -81,8 +83,42 @@ export default function Customers() {
     city: '',
   })
 
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCustomers() {
+      setLoading(true)
+      setApiError('')
+
+      try {
+        const nextCustomers = await getCustomers()
+
+        if (isActive) {
+          setCustomers(nextCustomers)
+        }
+      } catch (error) {
+        if (isActive) {
+          setApiError(getAdminApiErrorMessages(error).join(' '))
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadCustomers()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
   const cities = useMemo(
-    () => Array.from(new Set(customers.map((customer) => customer.city))),
+    () =>
+      Array.from(
+        new Set(customers.map((customer) => customer.city).filter(Boolean)),
+      ),
     [customers],
   )
 
@@ -94,7 +130,7 @@ export default function Customers() {
         const matchesSearch =
           customer.name.toLowerCase().includes(normalizedSearch) ||
           customer.email.toLowerCase().includes(normalizedSearch) ||
-          customer.phone.includes(normalizedSearch)
+          String(customer.phone || '').toLowerCase().includes(normalizedSearch)
         const matchesStatus =
           statusFilter === 'all' || customer.statusType === statusFilter
         const matchesCity =
@@ -133,11 +169,6 @@ export default function Customers() {
     statusFilter !== 'all' ||
     cityFilter !== 'all' ||
     sortBy !== 'recent'
-
-  const updateCustomers = (nextCustomers) => {
-    setCustomers(nextCustomers)
-    saveCustomers(nextCustomers)
-  }
 
   const resetToFirstPage = (setter) => (event) => {
     setter(event.target.value)
@@ -187,49 +218,37 @@ export default function Customers() {
       return
     }
 
-    const nextCustomer = {
-      id: Math.max(0, ...customers.map((customer) => customer.id)) + 1,
-      name: newCustomer.name.trim(),
-      initials: getInitials(newCustomer.name),
-      email: newCustomer.email.trim(),
-      phone: newCustomer.phone.trim() || 'Non renseigne',
-      city: newCustomer.city.trim() || 'Non renseignee',
-      orders: 0,
-      spent: 0,
-      status: 'Actif',
-      statusType: 'active',
-      date: 'Session locale',
-      tags: ['Nouveau'],
-      note: 'Client cree localement.',
-    }
-
-    updateCustomers([nextCustomer, ...customers])
-    setNewCustomer({
-      name: '',
-      email: '',
-      phone: '',
-      city: '',
-    })
-    setShowAddForm(false)
-    setNotice(`${nextCustomer.name} ajoute localement.`)
+    setNotice(
+      'Creation client depuis admin non disponible dans le backend actuel. Utilisez le flux inscription client.',
+    )
   }
 
-  const toggleCustomerStatus = (customer) => {
+  const toggleCustomerStatus = async (customer) => {
     const nextStatus =
-      customer.statusType === 'blocked' ? 'active' : 'blocked'
-    const nextCustomers = customers.map((currentCustomer) =>
-      currentCustomer.id === customer.id
-        ? {
-            ...currentCustomer,
-            statusType: nextStatus,
-            status: nextStatus === 'blocked' ? 'Bloque' : 'Actif',
-          }
-        : currentCustomer,
-    )
+      customer.statusType === 'active' ? 'inactive' : 'active'
 
-    updateCustomers(nextCustomers)
-    setOpenMenuId(null)
-    setNotice(`${customer.name} mis a jour localement.`)
+    setApiError('')
+
+    try {
+      const savedCustomer = await persistCustomerStatus(
+        customer.id,
+        nextStatus,
+      )
+
+      setCustomers((currentCustomers) =>
+        currentCustomers.map((currentCustomer) =>
+          currentCustomer.id === customer.id
+            ? savedCustomer
+            : currentCustomer,
+        ),
+      )
+      setNotice(`${customer.name} mis a jour en base.`)
+    } catch (error) {
+      setNotice('')
+      setApiError(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setOpenMenuId(null)
+    }
   }
 
   const activeCount = customers.filter(
@@ -270,6 +289,16 @@ export default function Customers() {
           </section>
 
           {notice ? <p className="admin-local-notice">{notice}</p> : null}
+          {loading ? (
+            <p className="admin-local-notice">
+              Chargement des clients depuis la base de donnees...
+            </p>
+          ) : null}
+          {apiError ? (
+            <div className="product-form-alert product-form-alert--error">
+              {apiError}
+            </div>
+          ) : null}
 
           {showAddForm ? (
             <form className="dashboard-card admin-inline-form" onSubmit={addCustomer}>
@@ -314,7 +343,7 @@ export default function Customers() {
                   }))
                 }
               />
-              <button type="submit">Creer localement</button>
+              <button type="submit">Creer</button>
             </form>
           ) : null}
 
@@ -323,7 +352,7 @@ export default function Customers() {
               icon={User}
               value={customers.length}
               label="Clients total"
-              growth="+ local"
+              growth="+ DB"
             />
             <AdminStatCard icon={Users} value={activeCount} label="Actifs" />
             <AdminStatCard
@@ -337,7 +366,7 @@ export default function Customers() {
             <AdminStatCard
               icon={UserRoundX}
               value={inactiveCount}
-              label="Inactifs / bloques"
+              label="Inactifs"
               danger
             />
           </section>
@@ -497,9 +526,9 @@ export default function Customers() {
                                   type="button"
                                   onClick={() => toggleCustomerStatus(customer)}
                                 >
-                                  {customer.statusType === 'blocked'
+                                  {customer.statusType !== 'active'
                                     ? 'Reactiver'
-                                    : 'Bloquer'}
+                                    : 'Desactiver'}
                                 </button>
                               </div>
                             ) : null}
@@ -512,7 +541,9 @@ export default function Customers() {
                   {visibleCustomers.length === 0 ? (
                     <tr>
                       <td className="admin-listing-table__empty" colSpan="10">
-                        Aucun client trouve
+                        {loading
+                          ? 'Chargement des clients...'
+                          : 'Aucun client trouve'}
                       </td>
                     </tr>
                   ) : null}

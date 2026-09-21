@@ -9,7 +9,6 @@ import {
   FileText,
   KeyRound,
   Laptop,
-  LogIn,
   Mail,
   MapPin,
   MessageSquare,
@@ -20,140 +19,86 @@ import {
   ShieldCheck,
   ShoppingCart,
   Smartphone,
-  Tag,
   Upload,
   UserRound,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
+import useAuth from '../../hooks/useAuth.js'
 import {
+  changePassword,
+  disableTwoFactor,
+  enableTwoFactor,
+  getSessions,
+  revokeOtherSessions,
+  setupTwoFactor,
+} from '../../services/authService.js'
+import {
+  fetchAdminProfile,
+  getAdminAnalytics,
+  getAdminApiErrorMessages,
   getAdminProfile,
+  getAdminProfilePreferences,
+  getMessageConversations,
   saveAdminProfile,
+  saveAdminProfilePreferences,
+  uploadAdminAvatar,
 } from '../../services/adminService.js'
-
-const adminIdentity = {
-  firstName: 'Omaima',
-  lastName: 'Achouaf',
-  fullName: 'Omaima Achouaf',
-  initials: 'OA',
-  role: 'Administrateur',
-  email: 'omaima.achouaf@nova.ma',
-  phone: '+212 6 12 34 56 78',
-  location: 'Maroc',
-  memberSince: '12 mars 2023',
-  address: '123 Avenue Mohammed V\nCasablanca, Maroc',
-}
-
-const securityRows = [
-  {
-    icon: KeyRound,
-    title: 'Mot de passe',
-    description: 'Changez votre mot de passe régulièrement.',
-    value: 'Modifier',
-  },
-  {
-    icon: Smartphone,
-    title: 'Authentification à deux facteurs',
-    description: 'Sécurisez votre compte avec la 2FA.',
-    value: 'Activée',
-    success: true,
-  },
-  {
-    icon: Laptop,
-    title: 'Sessions actives',
-    description: 'Gérez vos sessions sur tous vos appareils.',
-    value: '2 sessions',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Appareils connectés',
-    description: 'Consultez vos appareils de confiance.',
-    value: '3 appareils',
-  },
-]
-
-const activityItems = [
-  {
-    icon: Box,
-    title: 'Produit ajouté',
-    description: 'Vous avez ajouté le produit "Robe Élégance"',
-    time: 'Il y a 2 heures',
-  },
-  {
-    icon: ShoppingCart,
-    title: 'Commande confirmée',
-    description: 'Commande #NOVA-2026-0283 confirmée',
-    time: 'Il y a 5 heures',
-  },
-  {
-    icon: Tag,
-    title: 'Promotion créée',
-    description: 'Vous avez créé la promotion "Été 2026"',
-    time: 'Il y a 1 jour',
-  },
-  {
-    icon: LogIn,
-    title: 'Connexion récente',
-    description: 'Connexion depuis Casablanca, Maroc',
-    time: 'Il y a 2 jours',
-  },
-]
-
-const statItems = [
-  {
-    icon: ShoppingCart,
-    label: 'Commandes gérées',
-    value: '1 248',
-    change: '+12%',
-  },
-  {
-    icon: Box,
-    label: 'Produits ajoutés',
-    value: '356',
-    change: '+8%',
-  },
-  {
-    icon: Mail,
-    label: 'Messages traités',
-    value: '89',
-    change: '+24%',
-  },
-  {
-    icon: Clock3,
-    label: 'Dernière connexion',
-    value: "Aujourd'hui",
-    detail: 'à 10:24',
-  },
-]
-
-const profilePreferencesStorageKey = 'nova_admin_profile_preferences'
 
 const defaultProfilePreferences = {
   email: true,
   sms: true,
   newsletter: true,
   darkMode: false,
-  language: 'Français',
+  language: 'Francais',
   timezone: 'Maroc (GMT+1)',
 }
 
-function loadProfilePreferences() {
-  if (typeof window === 'undefined') {
-    return defaultProfilePreferences
+function normalizeProfilePreferences(preferences = {}) {
+  return {
+    ...defaultProfilePreferences,
+    ...preferences,
+  }
+}
+
+function createProfileForm(profile) {
+  return {
+    firstName: profile.firstName || '',
+    lastName: profile.lastName || '',
+    email: profile.email || '',
+    phone: profile.phone || '',
+    role: profile.role || 'Administrateur',
+    address: profile.address || '',
+  }
+}
+
+function parseAddress(value, profile) {
+  const lines = String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return {
+    city: lines[0] || profile.city || '',
+    country: lines[1] || profile.country || 'Maroc',
+  }
+}
+
+function formatInteger(value) {
+  return Number(value || 0).toLocaleString('fr-FR')
+}
+
+function formatSessionCount(sessions) {
+  const count = sessions.length
+
+  if (count === 0) {
+    return 'Aucune'
   }
 
-  try {
-    return (
-      JSON.parse(
-        window.localStorage.getItem(profilePreferencesStorageKey),
-      ) || defaultProfilePreferences
-    )
-  } catch {
-    return defaultProfilePreferences
-  }
+  return `${count} ${count > 1 ? 'sessions' : 'session'}`
 }
 
 function ProfileToggle({
@@ -201,24 +146,81 @@ function ProfileCard({
 
 export default function AdminProfile() {
   const fileInputRef = useRef(null)
+  const { user, updateUser } = useAuth()
   const [avatarPreview, setAvatarPreview] = useState('')
-  const [profile, setProfile] = useState(() => getAdminProfile())
-  const [profileForm, setProfileForm] = useState(() => {
-    const currentProfile = getAdminProfile()
-
-    return {
-      firstName: currentProfile.firstName,
-      lastName: currentProfile.lastName,
-      email: currentProfile.email,
-      phone: currentProfile.phone,
-      role: currentProfile.role,
-      address: currentProfile.address,
-    }
-  })
-  const [preferences, setPreferences] = useState(() =>
-    loadProfilePreferences(),
+  const [profile, setProfile] = useState(() => getAdminProfile(user))
+  const [profileForm, setProfileForm] = useState(() =>
+    createProfileForm(getAdminProfile(user)),
   )
+  const [preferences, setPreferences] = useState(defaultProfilePreferences)
+  const [analytics, setAnalytics] = useState(null)
+  const [messageStats, setMessageStats] = useState({})
+  const [conversations, setConversations] = useState([])
+  const [sessions, setSessions] = useState([])
   const [notice, setNotice] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadProfile() {
+      const fallbackProfile = getAdminProfile(user)
+
+      setProfile(fallbackProfile)
+      setProfileForm(createProfileForm(fallbackProfile))
+
+      const [
+        profileResult,
+        preferencesResult,
+        analyticsResult,
+        messagesResult,
+        sessionsResult,
+      ] = await Promise.allSettled([
+        fetchAdminProfile(),
+        getAdminProfilePreferences(),
+        getAdminAnalytics('current_month'),
+        getMessageConversations(),
+        getSessions(),
+      ])
+
+      if (!isActive) {
+        return
+      }
+
+      if (profileResult.status === 'fulfilled') {
+        setProfile(profileResult.value)
+        setProfileForm(createProfileForm(profileResult.value))
+      } else {
+        setNotice(getAdminApiErrorMessages(profileResult.reason).join(' '))
+      }
+
+      if (preferencesResult.status === 'fulfilled') {
+        setPreferences(
+          normalizeProfilePreferences(preferencesResult.value),
+        )
+      }
+
+      if (analyticsResult.status === 'fulfilled') {
+        setAnalytics(analyticsResult.value)
+      }
+
+      if (messagesResult.status === 'fulfilled') {
+        setMessageStats(messagesResult.value.stats || {})
+        setConversations(messagesResult.value.conversations || [])
+      }
+
+      if (sessionsResult.status === 'fulfilled') {
+        setSessions(sessionsResult.value.sessions || [])
+      }
+    }
+
+    loadProfile()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
 
   useEffect(
     () => () => {
@@ -228,6 +230,117 @@ export default function AdminProfile() {
     },
     [avatarPreview],
   )
+
+  const twoFactorEnabled = Boolean(
+    profile.raw?.twoFactorEnabled ??
+      profile.raw?.two_factor_enabled ??
+      user?.twoFactorEnabled ??
+      user?.two_factor_enabled,
+  )
+
+  const activityItems = useMemo(() => {
+    const orderActivity = (analytics?.latestOrders || [])
+      .slice(0, 3)
+      .map((order) => ({
+        icon: ShoppingCart,
+        title: `Commande ${order.id}`,
+        description: `${order.customer} - ${order.status}`,
+        time: order.date,
+      }))
+
+    const messageActivity = conversations
+      .filter((conversation) => conversation.preview)
+      .slice(0, 1)
+      .map((conversation) => ({
+        icon: MessageSquare,
+        title: `Message de ${conversation.name}`,
+        description: conversation.preview,
+        time: conversation.time,
+      }))
+
+    const items = [
+      ...messageActivity,
+      ...orderActivity,
+    ]
+
+    if (items.length > 0) {
+      return items
+    }
+
+    return [
+      {
+        icon: Clock3,
+        title: 'Aucune activite recente',
+        description: 'Aucune commande ou conversation recente en base.',
+        time: 'Base de donnees',
+      },
+    ]
+  }, [analytics, conversations])
+
+  const statItems = useMemo(
+    () => [
+      {
+        icon: ShoppingCart,
+        label: 'Commandes du mois',
+        value: formatInteger(analytics?.stats?.ordersCount),
+        detail: 'Donnees commandes',
+      },
+      {
+        icon: Box,
+        label: 'Produits vendus',
+        value: formatInteger(analytics?.stats?.productsSold),
+        detail: 'Articles commandes',
+      },
+      {
+        icon: Mail,
+        label: 'Messages non lus',
+        value: formatInteger(messageStats.unread),
+        detail: `${formatInteger(messageStats.total)} conversations`,
+      },
+      {
+        icon: Clock3,
+        label: 'Sessions actives',
+        value: formatSessionCount(sessions),
+        detail: sessions.some((session) => session.isCurrent)
+          ? 'Session actuelle incluse'
+          : 'Backend auth',
+        online: true,
+      },
+    ],
+    [analytics, messageStats, sessions],
+  )
+
+  const securityRows = [
+    {
+      icon: KeyRound,
+      title: 'Mot de passe',
+      description: 'Changez votre mot de passe regulierement.',
+      value: 'Modifier',
+      action: 'password',
+    },
+    {
+      icon: Smartphone,
+      title: 'Authentification a deux facteurs',
+      description: 'Securisez votre compte avec la 2FA.',
+      value: twoFactorEnabled ? 'Activee' : 'Desactivee',
+      success: twoFactorEnabled,
+      action: 'two-factor',
+    },
+    {
+      icon: Laptop,
+      title: 'Sessions actives',
+      description: 'Rechargez la liste des sessions connectees.',
+      value: formatSessionCount(sessions),
+      action: 'sessions',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Autres appareils',
+      description: 'Deconnectez les autres sessions actives.',
+      value: 'Revoquer',
+      action: 'revoke-other-sessions',
+    },
+  ]
 
   const updateProfileField = (event) => {
     const { name, value } = event.target
@@ -239,60 +352,233 @@ export default function AdminProfile() {
     setNotice('')
   }
 
-  const updatePreference = (key, value) => {
-    setPreferences((currentPreferences) => {
-      const nextPreferences = {
-        ...currentPreferences,
-        [key]: value,
-      }
+  const updatePreference = async (key, value) => {
+    const nextPreferences = {
+      ...preferences,
+      [key]: value,
+    }
 
-      window.localStorage.setItem(
-        profilePreferencesStorageKey,
-        JSON.stringify(nextPreferences),
-      )
-
-      return nextPreferences
-    })
+    setPreferences(nextPreferences)
     setNotice('')
+
+    try {
+      const savedPreferences =
+        await saveAdminProfilePreferences(nextPreferences)
+
+      setPreferences(normalizeProfilePreferences(savedPreferences))
+      setNotice('Preferences enregistrees en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
   }
 
-  const handleAvatarChange = (event) => {
+  const handleAvatarChange = async (event) => {
     const [file] = Array.from(event.target.files || [])
 
-    if (!file) {
+    if (!file || isUploading) {
       return
     }
+
+    const previewUrl = URL.createObjectURL(file)
 
     setAvatarPreview((currentPreview) => {
       if (currentPreview) {
         URL.revokeObjectURL(currentPreview)
       }
 
-      return URL.createObjectURL(file)
+      return previewUrl
     })
-    setNotice('Photo prévisualisée localement.')
-    event.target.value = ''
+    setIsUploading(true)
+    setNotice('')
+
+    try {
+      const nextProfile = await uploadAdminAvatar(file)
+
+      setProfile(nextProfile)
+      setProfileForm(createProfileForm(nextProfile))
+
+      if (nextProfile.raw) {
+        updateUser(nextProfile.raw)
+      }
+
+      setAvatarPreview('')
+      setNotice('Photo de profil mise a jour en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setIsUploading(false)
+      event.target.value = ''
+    }
   }
 
-  const saveProfile = () => {
-    const nextProfile = saveAdminProfile({
-      ...profile,
-      ...profileForm,
-      location: profile.location || adminIdentity.location,
-      memberSince: profile.memberSince || adminIdentity.memberSince,
-    })
+  const saveProfile = async () => {
+    if (isSaving) {
+      return
+    }
 
-    setProfile(nextProfile)
-    setNotice('Profil mis à jour localement.')
+    if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) {
+      setNotice('Le prenom et le nom sont requis.')
+      return
+    }
+
+    if (!profileForm.email.includes('@')) {
+      setNotice('Veuillez saisir une adresse email valide.')
+      return
+    }
+
+    const address = parseAddress(profileForm.address, profile)
+
+    setIsSaving(true)
+    setNotice('')
+
+    try {
+      const nextProfile = await saveAdminProfile({
+        ...profile,
+        ...profileForm,
+        city: address.city,
+        country: address.country,
+      })
+
+      setProfile(nextProfile)
+      setProfileForm(createProfileForm(nextProfile))
+
+      if (nextProfile.raw) {
+        updateUser(nextProfile.raw)
+      }
+
+      setNotice('Profil mis a jour en base.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleSecurityAction = (title) => {
-    setNotice(`Action de securite locale ouverte : ${title}.`)
+  const refreshSessions = async () => {
+    const data = await getSessions()
+
+    setSessions(data.sessions || [])
+    return data.sessions || []
+  }
+
+  const handlePasswordChange = async () => {
+    const currentPassword = window.prompt('Mot de passe actuel')
+
+    if (currentPassword === null) {
+      return
+    }
+
+    const newPassword = window.prompt('Nouveau mot de passe')
+
+    if (newPassword === null) {
+      return
+    }
+
+    try {
+      const result = await changePassword(currentPassword, newPassword)
+
+      await refreshSessions()
+      setNotice(result.message || 'Mot de passe mis a jour.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const handleTwoFactor = async () => {
+    try {
+      if (twoFactorEnabled) {
+        const currentPassword = window.prompt('Mot de passe actuel')
+
+        if (currentPassword === null) {
+          return
+        }
+
+        const code = window.prompt('Code 2FA a 6 chiffres')
+
+        if (code === null) {
+          return
+        }
+
+        const result = await disableTwoFactor(currentPassword, code)
+        const nextUser = {
+          ...(user || profile.raw || {}),
+          twoFactorEnabled: false,
+        }
+
+        updateUser(nextUser)
+        setProfile((currentProfile) => ({
+          ...currentProfile,
+          raw: nextUser,
+        }))
+        setNotice(result.message || '2FA desactivee.')
+        return
+      }
+
+      const setup = await setupTwoFactor()
+      const code = window.prompt(
+        `Cle manuelle 2FA: ${setup.manualKey}\nSaisissez le code a 6 chiffres apres configuration.`,
+      )
+
+      if (code === null) {
+        return
+      }
+
+      const result = await enableTwoFactor(code)
+      const nextUser = {
+        ...(user || profile.raw || {}),
+        twoFactorEnabled: true,
+      }
+
+      updateUser(nextUser)
+      setProfile((currentProfile) => ({
+        ...currentProfile,
+        raw: nextUser,
+      }))
+      setNotice(result.message || '2FA activee.')
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
+  }
+
+  const handleSecurityAction = async (action) => {
+    try {
+      if (action === 'password') {
+        await handlePasswordChange()
+        return
+      }
+
+      if (action === 'two-factor') {
+        await handleTwoFactor()
+        return
+      }
+
+      if (action === 'sessions') {
+        const nextSessions = await refreshSessions()
+
+        setNotice(
+          `${formatSessionCount(nextSessions)} chargees depuis le backend.`,
+        )
+        return
+      }
+
+      if (action === 'revoke-other-sessions') {
+        const result = await revokeOtherSessions()
+        await refreshSessions()
+        setNotice(
+          result.message ||
+            `${formatInteger(result.revokedCount)} sessions revoquees.`,
+        )
+      }
+    } catch (error) {
+      setNotice(getAdminApiErrorMessages(error).join(' '))
+    }
   }
 
   const showFullActivity = () => {
-    setNotice('Historique complet disponible apres connexion backend.')
+    setNotice('Activite affichee depuis les dernieres commandes et messages.')
   }
+
+  const avatarUrl = avatarPreview || profile.avatarUrl
 
   return (
     <div className="admin-layout">
@@ -311,8 +597,8 @@ export default function AdminProfile() {
           <section className="admin-profile-heading">
             <h1>Mon profil</h1>
             <p>
-              Gérez vos informations personnelles, votre compte et vos
-              préférences.
+              Gerez vos informations personnelles, votre compte et vos
+              preferences.
             </p>
           </section>
 
@@ -323,18 +609,18 @@ export default function AdminProfile() {
           <section className="admin-profile-grid">
             <ProfileCard
               icon={UserRound}
-              title="Aperçu du profil"
+              title="Apercu du profil"
               className="admin-profile-overview-card"
             >
               <span className="admin-profile-verified">
-                Compte vérifié
+                Compte verifie
                 <CheckCircle2 size={15} strokeWidth={2} />
               </span>
 
               <div className="admin-profile-overview">
                 <div className="admin-profile-avatar-large">
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt={profile.fullName} />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={profile.fullName} />
                   ) : (
                     <span>{profile.initials}</span>
                   )}
@@ -346,44 +632,49 @@ export default function AdminProfile() {
 
                   <div>
                     <Mail size={16} strokeWidth={1.8} />
-                    <span>{profile.email}</span>
+                    <span>{profile.email || 'Email non renseigne'}</span>
                   </div>
 
                   <div>
                     <Phone size={16} strokeWidth={1.8} />
-                    <span>{profile.phone}</span>
+                    <span>{profile.phone || 'Telephone non renseigne'}</span>
                   </div>
 
                   <div>
                     <MapPin size={16} strokeWidth={1.8} />
-                    <span>{profile.location}</span>
+                    <span>{profile.location || 'Localisation non renseignee'}</span>
                   </div>
 
                   <div>
                     <CalendarDays size={16} strokeWidth={1.8} />
-                    <span>Membre depuis le {profile.memberSince}</span>
+                    <span>
+                      {profile.memberSince
+                        ? `Membre depuis le ${profile.memberSince}`
+                        : 'Date de creation non renseignee'}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="admin-profile-overview-actions">
-                <button type="button" onClick={saveProfile}>
+                <button type="button" onClick={saveProfile} disabled={isSaving}>
                   <Edit3 size={16} strokeWidth={1.8} />
-                  <span>Modifier le profil</span>
+                  <span>{isSaving ? 'Enregistrement...' : 'Modifier le profil'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
                 >
                   <Upload size={16} strokeWidth={1.8} />
-                  <span>Télécharger la photo</span>
+                  <span>{isUploading ? 'Envoi...' : 'Telecharger la photo'}</span>
                 </button>
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handleAvatarChange}
                 />
               </div>
@@ -392,11 +683,11 @@ export default function AdminProfile() {
             <ProfileCard
               icon={ReceiptText}
               title="Informations personnelles"
-              subtitle="Mettez à jour vos informations personnelles."
+              subtitle="Mettez a jour vos informations personnelles."
             >
               <div className="admin-profile-form-grid">
                 <label>
-                  <span>Prénom</span>
+                  <span>Prenom</span>
                   <input
                     name="firstName"
                     value={profileForm.firstName}
@@ -424,7 +715,7 @@ export default function AdminProfile() {
                 </label>
 
                 <label>
-                  <span>Téléphone</span>
+                  <span>Telephone</span>
                   <input
                     name="phone"
                     value={profileForm.phone}
@@ -437,7 +728,7 @@ export default function AdminProfile() {
                   <input
                     name="role"
                     value={profileForm.role}
-                    onChange={updateProfileField}
+                    readOnly
                   />
                 </label>
 
@@ -455,15 +746,16 @@ export default function AdminProfile() {
                 className="admin-profile-save-button"
                 type="button"
                 onClick={saveProfile}
+                disabled={isSaving}
               >
-                Enregistrer les informations
+                {isSaving ? 'Enregistrement...' : 'Enregistrer les informations'}
               </button>
             </ProfileCard>
 
             <ProfileCard
               icon={Settings}
-              title="Préférences du compte"
-              subtitle="Personnalisez votre expérience d'administration."
+              title="Preferences du compte"
+              subtitle="Personnalisez votre experience d'administration."
             >
               <div className="admin-profile-preferences">
                 {[
@@ -471,7 +763,7 @@ export default function AdminProfile() {
                     'email',
                     Mail,
                     'Notifications par email',
-                    'Recevoir des notifications sur les commandes, les clients et les activités importantes.',
+                    'Recevoir des notifications sur les commandes, les clients et les activites importantes.',
                   ],
                   [
                     'sms',
@@ -483,13 +775,13 @@ export default function AdminProfile() {
                     'newsletter',
                     FileText,
                     'Newsletter interne',
-                    'Recevoir les actualités et conseils de la plateforme.',
+                    'Recevoir les actualites et conseils de la plateforme.',
                   ],
                   [
                     'darkMode',
                     Moon,
                     'Mode sombre',
-                    "Utiliser le thème sombre pour l'interface.",
+                    "Utiliser le theme sombre pour l'interface.",
                   ],
                 ].map(([key, Icon, label, description]) => (
                   <div className="admin-profile-preference-row" key={key}>
@@ -516,9 +808,9 @@ export default function AdminProfile() {
                       updatePreference('language', event.target.value)
                     }
                   >
-                    <option>Français</option>
+                    <option>Francais</option>
                     <option>English</option>
-                    <option>العربية</option>
+                    <option>Arabic</option>
                   </select>
                 </label>
 
@@ -541,8 +833,8 @@ export default function AdminProfile() {
 
             <ProfileCard
               icon={ShieldCheck}
-              title="Sécurité du compte"
-              subtitle="Protégez votre compte et vos données."
+              title="Securite du compte"
+              subtitle="Protegez votre compte et vos donnees."
             >
               <div className="admin-profile-security-list">
                 {securityRows.map((row) => {
@@ -552,7 +844,7 @@ export default function AdminProfile() {
                     <button
                       type="button"
                       key={row.title}
-                      onClick={() => handleSecurityAction(row.title)}
+                      onClick={() => handleSecurityAction(row.action)}
                     >
                       <Icon size={23} strokeWidth={1.8} />
                       <div>
@@ -571,15 +863,15 @@ export default function AdminProfile() {
 
             <ProfileCard
               icon={Clock3}
-              title="Activité récente"
-              subtitle="Vos dernières actions sur la plateforme."
+              title="Activite recente"
+              subtitle="Vos dernieres actions disponibles dans la base."
             >
               <div className="admin-profile-activity-list">
                 {activityItems.map((item) => {
                   const Icon = item.icon
 
                   return (
-                    <div key={item.title}>
+                    <div key={`${item.title}-${item.time}`}>
                       <span className="admin-profile-activity-dot" />
                       <Icon size={20} strokeWidth={1.8} />
                       <div>
@@ -597,7 +889,7 @@ export default function AdminProfile() {
                 type="button"
                 onClick={showFullActivity}
               >
-                Voir toute l'activité
+                Voir toute l'activite
                 <ChevronRight size={15} strokeWidth={1.7} />
               </button>
             </ProfileCard>
@@ -605,7 +897,7 @@ export default function AdminProfile() {
             <ProfileCard
               icon={BarChart3}
               title="Statistiques du compte"
-              subtitle="Votre activité en quelques chiffres."
+              subtitle="Votre activite en quelques chiffres."
             >
               <div className="admin-profile-stats-grid">
                 {statItems.map((stat) => {
@@ -617,13 +909,9 @@ export default function AdminProfile() {
                       <div>
                         <span>{stat.label}</span>
                         <strong>{stat.value}</strong>
-                        {stat.change ? (
-                          <small>↗ {stat.change} vs. mois dernier</small>
-                        ) : (
-                          <small className="is-online">
-                            {stat.detail} · En ligne
-                          </small>
-                        )}
+                        <small className={stat.online ? 'is-online' : ''}>
+                          {stat.detail}
+                        </small>
                       </div>
                     </div>
                   )

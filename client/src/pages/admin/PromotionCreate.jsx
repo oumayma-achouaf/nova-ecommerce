@@ -14,16 +14,21 @@ import {
   Truck,
   Users,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import AdminHeader from '../../components/layout/AdminHeader.jsx'
 import AdminSidebar from '../../components/layout/AdminSidebar.jsx'
-import { upsertPromotion } from '../../services/adminService.js'
+import {
+  getAdminApiErrorMessages,
+  getCategories,
+  getProducts,
+  upsertPromotion,
+} from '../../services/adminService.js'
 
 const promotionTypes = [
   ['code', 'Code promo'],
-  ['discount', 'Réduction'],
+  ['discount', 'Reduction'],
   ['shipping', 'Livraison gratuite'],
 ]
 
@@ -34,28 +39,14 @@ const discountModes = [
 
 const statuses = [
   ['draft', 'Brouillon'],
-  ['scheduled', 'Planifiée'],
+  ['scheduled', 'Planifiee'],
   ['active', 'Active'],
 ]
 
 const targetOptions = [
   ['all', 'Tous les produits'],
-  ['products', 'Produits spécifiques'],
-  ['categories', 'Catégories spécifiques'],
-]
-
-const promotionProductOptions = [
-  'Baskets Nova Premium',
-  'Sac Élise',
-  'Pull en cachemire',
-  'Montre Horizon',
-  'Casquette Nova',
-]
-
-const promotionCategoryOptions = [
-  'Chaussures',
-  'Accessoires',
-  'Vêtements',
+  ['products', 'Produits specifiques'],
+  ['categories', 'Categories specifiques'],
 ]
 
 const initialPromotion = {
@@ -67,42 +58,12 @@ const initialPromotion = {
   discountValue: '',
   maxDiscount: '',
   minOrderAmount: '',
-  startDate: '2026-09-15',
-  endDate: '2026-09-30',
-  maxUses: '500',
+  startDate: '',
+  endDate: '',
+  maxUses: '',
   usesPerCustomer: '1',
   targetType: 'all',
   status: 'draft',
-}
-
-const promotionStatusMap = {
-  draft: {
-    status: 'Brouillon',
-    statusClass: 'draft',
-  },
-  scheduled: {
-    status: 'Planifiee',
-    statusClass: 'planned',
-  },
-  active: {
-    status: 'Active',
-    statusClass: 'active',
-  },
-}
-
-const promotionTypeMap = {
-  code: {
-    type: 'Code promo',
-    typeClass: 'code',
-  },
-  discount: {
-    type: 'Reduction',
-    typeClass: 'discount',
-  },
-  shipping: {
-    type: 'Livraison',
-    typeClass: 'delivery',
-  },
 }
 
 function SelectField({
@@ -189,13 +150,57 @@ function PromotionCard({
   )
 }
 
+function getApiType(form) {
+  if (form.type === 'shipping') {
+    return 'free_shipping'
+  }
+
+  return form.discountMode === 'fixed'
+    ? 'fixed'
+    : 'percentage'
+}
+
 export default function PromotionCreate() {
   const navigate = useNavigate()
   const [form, setForm] = useState(initialPromotion)
   const [selectedProducts, setSelectedProducts] = useState([])
   const [selectedCategories, setSelectedCategories] = useState([])
+  const [productOptions, setProductOptions] = useState([])
+  const [categoryOptions, setCategoryOptions] = useState([])
   const [errors, setErrors] = useState([])
   const [notice, setNotice] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadTargets() {
+      try {
+        const [
+          products,
+          categories,
+        ] = await Promise.all([
+          getProducts(),
+          getCategories(),
+        ])
+
+        if (isActive) {
+          setProductOptions(products)
+          setCategoryOptions(categories)
+        }
+      } catch (error) {
+        if (isActive) {
+          setErrors(getAdminApiErrorMessages(error))
+        }
+      }
+    }
+
+    loadTargets()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const selectedTypeLabel = useMemo(
     () =>
@@ -238,8 +243,8 @@ export default function PromotionCreate() {
       nextErrors.push('Le nom de la promotion est requis.')
     }
 
-    if (candidate.type === 'code' && !candidate.code.trim()) {
-      nextErrors.push('Le code promo est requis pour ce type de promotion.')
+    if (!candidate.code.trim()) {
+      nextErrors.push('Le code promo est requis.')
     }
 
     if (
@@ -247,32 +252,39 @@ export default function PromotionCreate() {
       (!Number(candidate.discountValue) ||
         Number(candidate.discountValue) <= 0)
     ) {
-      nextErrors.push('La valeur de réduction doit être supérieure à 0.')
+      nextErrors.push('La valeur de reduction doit etre superieure a 0.')
     }
 
-    if (candidate.startDate && candidate.endDate && end < start) {
-      nextErrors.push('La date de fin ne peut pas être avant la date de début.')
+    if (
+      candidate.startDate &&
+      candidate.endDate &&
+      end < start
+    ) {
+      nextErrors.push('La date de fin ne peut pas etre avant la date de debut.')
     }
 
     if (
       candidate.targetType === 'products' &&
       selectedProducts.length === 0
     ) {
-      nextErrors.push('Sélectionnez au moins un produit concerné.')
+      nextErrors.push('Selectionnez au moins un produit concerne.')
     }
 
-    if (
-      candidate.targetType === 'categories' &&
-      selectedCategories.length === 0
-    ) {
-      nextErrors.push('Sélectionnez au moins une catégorie concernée.')
+    if (candidate.targetType === 'categories') {
+      nextErrors.push(
+        'Les promotions par categorie ne sont pas supportees par le schema actuel.',
+      )
     }
 
     setErrors(nextErrors)
     return nextErrors.length === 0
   }
 
-  const submitPromotion = (nextStatus) => {
+  const submitPromotion = async (nextStatus) => {
+    if (isSaving) {
+      return
+    }
+
     const nextForm = {
       ...form,
       status: nextStatus,
@@ -283,45 +295,34 @@ export default function PromotionCreate() {
       return
     }
 
-    const typeInfo = promotionTypeMap[nextForm.type]
-    const statusInfo = promotionStatusMap[nextStatus]
-    const selectedTargetCount =
-      nextForm.targetType === 'products'
-        ? selectedProducts.length
-        : selectedCategories.length
-    const productsLabel =
-      nextForm.targetType === 'all'
-        ? 'Tous les produits'
-        : `${selectedTargetCount} ${
-            nextForm.targetType === 'products' ? 'produits' : 'categories'
-          }`
-    const reductionLabel =
-      nextForm.type === 'shipping'
-        ? 'Livraison gratuite'
-        : `-${nextForm.discountValue}${
-            nextForm.discountMode === 'percent' ? '%' : ' DH'
-          }`
+    setIsSaving(true)
+    setErrors([])
 
-    upsertPromotion({
-      title: nextForm.name.trim(),
-      code: nextForm.code.trim().toUpperCase() || 'NOVA',
-      type: typeInfo.type,
-      typeClass: typeInfo.typeClass,
-      reduction: reductionLabel,
-      period: `${nextForm.startDate} - ${nextForm.endDate}`,
-      products: productsLabel,
-      status: statusInfo.status,
-      statusClass: statusInfo.statusClass,
-      image: '',
-      fallback: nextForm.type === 'shipping' ? 'delivery' : 'loyalty',
-    })
+    try {
+      await upsertPromotion({
+        name: nextForm.name.trim(),
+        code: nextForm.code.trim().toUpperCase(),
+        apiType: getApiType(nextForm),
+        value: nextForm.discountValue,
+        minimumAmount: nextForm.minOrderAmount,
+        maxUses: nextForm.maxUses,
+        startDate: nextForm.startDate,
+        endDate: nextForm.endDate,
+        statusClass: nextStatus,
+        productIds:
+          nextForm.targetType === 'products'
+            ? selectedProducts
+            : [],
+      })
 
-    setForm(nextForm)
-    setNotice(
-      nextStatus === 'draft'
-        ? 'Brouillon enregistré localement.'
-        : 'Promotion configurée localement et prête à être utilisée.',
-    )
+      setNotice('Promotion creee en base.')
+      navigate('/admin/promotions')
+    } catch (error) {
+      setNotice('')
+      setErrors(getAdminApiErrorMessages(error))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const resetForm = () => {
@@ -329,7 +330,7 @@ export default function PromotionCreate() {
     setSelectedProducts([])
     setSelectedCategories([])
     setErrors([])
-    setNotice('Formulaire réinitialisé localement.')
+    setNotice('Formulaire reinitialise.')
   }
 
   return (
@@ -345,7 +346,7 @@ export default function PromotionCreate() {
             <ChevronRight size={14} strokeWidth={1.7} />
             <Link to="/admin/promotions">Promotions</Link>
             <ChevronRight size={14} strokeWidth={1.7} />
-            <strong>Créer une promotion</strong>
+            <strong>Creer une promotion</strong>
           </section>
 
           <section className="promotion-create-heading">
@@ -359,9 +360,9 @@ export default function PromotionCreate() {
               </Link>
 
               <div>
-                <h1>Créer une promotion</h1>
+                <h1>Creer une promotion</h1>
                 <p>
-                  Configurez votre offre promotionnelle, sa durée et ses
+                  Configurez votre offre promotionnelle, sa duree et ses
                   conditions.
                 </p>
               </div>
@@ -372,6 +373,7 @@ export default function PromotionCreate() {
                 className="promotion-create-secondary"
                 type="button"
                 onClick={() => navigate('/admin/promotions')}
+                disabled={isSaving}
               >
                 Annuler
               </button>
@@ -380,9 +382,10 @@ export default function PromotionCreate() {
                 className="promotion-create-secondary"
                 type="button"
                 onClick={() => submitPromotion('draft')}
+                disabled={isSaving}
               >
                 <Save size={16} strokeWidth={1.8} />
-                <span>Enregistrer comme brouillon</span>
+                <span>{isSaving ? 'Enregistrement...' : 'Enregistrer comme brouillon'}</span>
               </button>
 
               <button
@@ -393,9 +396,10 @@ export default function PromotionCreate() {
                     form.status === 'scheduled' ? 'scheduled' : 'active',
                   )
                 }
+                disabled={isSaving}
               >
                 <CheckCircle2 size={16} strokeWidth={1.8} />
-                <span>Créer la promotion</span>
+                <span>{isSaving ? 'Creation...' : 'Creer la promotion'}</span>
               </button>
             </div>
           </section>
@@ -418,7 +422,7 @@ export default function PromotionCreate() {
             <div className="promotion-create-main-column">
               <PromotionCard
                 icon={TicketPercent}
-                title="Informations générales"
+                title="Informations generales"
                 subtitle="Nommez l'offre et choisissez son fonctionnement."
               >
                 <div className="promotion-create-form-grid">
@@ -426,7 +430,7 @@ export default function PromotionCreate() {
                     label="Nom de la promotion"
                     name="name"
                     value={form.name}
-                    placeholder="Offre spéciale sneakers"
+                    placeholder="Offre speciale sneakers"
                     onChange={updateField}
                     required
                   />
@@ -437,7 +441,7 @@ export default function PromotionCreate() {
                     value={form.code}
                     placeholder="SNEAKERS20"
                     onChange={updateField}
-                    required={form.type === 'code'}
+                    required
                   />
 
                   <SelectField
@@ -470,7 +474,7 @@ export default function PromotionCreate() {
 
               <PromotionCard
                 icon={Percent}
-                title="Réduction"
+                title="Reduction"
                 subtitle={`Configuration pour : ${selectedTypeLabel}.`}
               >
                 {form.type === 'shipping' ? (
@@ -479,7 +483,7 @@ export default function PromotionCreate() {
                     <div>
                       <strong>Livraison gratuite</strong>
                       <span>
-                        Aucun montant de réduction n'est nécessaire pour ce
+                        Aucun montant de reduction n'est necessaire pour ce
                         type d'offre.
                       </span>
                     </div>
@@ -487,7 +491,7 @@ export default function PromotionCreate() {
                 ) : (
                   <div className="promotion-create-form-grid promotion-create-form-grid--three">
                     <SelectField
-                      label="Mode de réduction"
+                      label="Mode de reduction"
                       name="discountMode"
                       value={form.discountMode}
                       options={discountModes}
@@ -495,7 +499,7 @@ export default function PromotionCreate() {
                     />
 
                     <TextField
-                      label="Valeur de réduction"
+                      label="Valeur de reduction"
                       name="discountValue"
                       type="number"
                       value={form.discountValue}
@@ -505,7 +509,7 @@ export default function PromotionCreate() {
                     />
 
                     <TextField
-                      label="Réduction maximale"
+                      label="Reduction maximale"
                       name="maxDiscount"
                       type="number"
                       value={form.maxDiscount}
@@ -518,12 +522,12 @@ export default function PromotionCreate() {
 
               <PromotionCard
                 icon={CalendarDays}
-                title="Période de validité"
-                subtitle="Définissez quand l'offre commence et se termine."
+                title="Periode de validite"
+                subtitle="Definissez quand l'offre commence et se termine."
               >
                 <div className="promotion-create-form-grid">
                   <TextField
-                    label="Date de début"
+                    label="Date de debut"
                     name="startDate"
                     type="date"
                     value={form.startDate}
@@ -577,8 +581,8 @@ export default function PromotionCreate() {
 
               <PromotionCard
                 icon={Target}
-                title="Produits concernés"
-                subtitle="Ciblez l'offre sans appel backend."
+                title="Produits concernes"
+                subtitle="Ciblez l'offre selon le schema disponible."
               >
                 <div className="promotion-create-target-tabs">
                   {targetOptions.map(([value, label]) => (
@@ -602,21 +606,21 @@ export default function PromotionCreate() {
 
                 {form.targetType === 'products' ? (
                   <div className="promotion-create-chip-list">
-                    {promotionProductOptions.map((product) => (
+                    {productOptions.map((product) => (
                       <button
                         className={
-                          selectedProducts.includes(product)
+                          selectedProducts.includes(product.id)
                             ? 'is-selected'
                             : ''
                         }
                         type="button"
-                        key={product}
+                        key={product.id}
                         onClick={() =>
-                          toggleItem(product, setSelectedProducts)
+                          toggleItem(product.id, setSelectedProducts)
                         }
                       >
                         <ShoppingBag size={13} strokeWidth={1.7} />
-                        <span>{product}</span>
+                        <span>{product.name}</span>
                       </button>
                     ))}
                   </div>
@@ -624,21 +628,21 @@ export default function PromotionCreate() {
 
                 {form.targetType === 'categories' ? (
                   <div className="promotion-create-chip-list">
-                    {promotionCategoryOptions.map((category) => (
+                    {categoryOptions.map((category) => (
                       <button
                         className={
-                          selectedCategories.includes(category)
+                          selectedCategories.includes(category.id)
                             ? 'is-selected'
                             : ''
                         }
                         type="button"
-                        key={category}
+                        key={category.id}
                         onClick={() =>
-                          toggleItem(category, setSelectedCategories)
+                          toggleItem(category.id, setSelectedCategories)
                         }
                       >
                         <Tag size={13} strokeWidth={1.7} />
-                        <span>{category}</span>
+                        <span>{category.name}</span>
                       </button>
                     ))}
                   </div>
@@ -646,9 +650,13 @@ export default function PromotionCreate() {
               </PromotionCard>
 
               <div className="promotion-create-footer-actions">
-                <button type="button" onClick={resetForm}>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={isSaving}
+                >
                   <RotateCcw size={16} strokeWidth={1.8} />
-                  <span>Réinitialiser</span>
+                  <span>Reinitialiser</span>
                 </button>
 
                 <button
@@ -658,8 +666,9 @@ export default function PromotionCreate() {
                       form.status === 'scheduled' ? 'scheduled' : 'active',
                     )
                   }
+                  disabled={isSaving}
                 >
-                  Créer la promotion
+                  {isSaving ? 'Creation...' : 'Creer la promotion'}
                 </button>
               </div>
             </aside>

@@ -11,7 +11,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import {
+  getAdminApiErrorMessages,
   slugify,
+  uploadAdminImages,
   upsertCategory,
 } from '../../services/adminService.js'
 
@@ -38,8 +40,10 @@ export default function CategoryForm({
   })
   const [preview, setPreview] = useState(initialValues.image || '')
   const [previewIsObjectUrl, setPreviewIsObjectUrl] = useState(false)
+  const [imageFile, setImageFile] = useState(null)
   const [errors, setErrors] = useState([])
   const [notice, setNotice] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(
     () => () => {
@@ -78,7 +82,8 @@ export default function CategoryForm({
 
     setPreview(URL.createObjectURL(file))
     setPreviewIsObjectUrl(true)
-    setNotice('Image previsualisee localement.')
+    setImageFile(file)
+    setNotice('Image prete pour envoi serveur.')
     event.target.value = ''
   }
 
@@ -101,23 +106,48 @@ export default function CategoryForm({
     return nextErrors.length === 0
   }
 
-  const saveCategory = () => {
+  const saveCategory = async () => {
+    if (isSaving) {
+      return
+    }
+
     if (!validate()) {
       setNotice('')
       return
     }
 
-    const savedCategory = upsertCategory({
-      ...form,
-      image: previewIsObjectUrl ? '' : preview,
-    })
+    setIsSaving(true)
+    setErrors([])
 
-    setForm(savedCategory)
-    setNotice(
-      mode === 'edit'
-        ? 'Categorie mise a jour localement.'
-        : 'Categorie creee localement.',
-    )
+    try {
+      const [uploadedImage] = imageFile
+        ? await uploadAdminImages([imageFile], 'categories')
+        : []
+
+      const savedCategory = await upsertCategory({
+        ...form,
+        image: uploadedImage?.image_url || preview,
+      })
+
+      setForm(savedCategory)
+      setPreview(savedCategory.image || '')
+      setPreviewIsObjectUrl(false)
+      setImageFile(null)
+      setNotice(
+        mode === 'edit'
+          ? 'Categorie mise a jour en base.'
+          : 'Categorie creee en base.',
+      )
+
+      if (mode === 'create') {
+        navigate('/admin/categories')
+      }
+    } catch (error) {
+      setNotice('')
+      setErrors(getAdminApiErrorMessages(error))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const resetForm = () => {
@@ -127,8 +157,9 @@ export default function CategoryForm({
     })
     setPreview(initialValues.image || '')
     setPreviewIsObjectUrl(false)
+    setImageFile(null)
     setErrors([])
-    setNotice('Formulaire reinitialise localement.')
+    setNotice('Formulaire reinitialise.')
   }
 
   return (
@@ -162,6 +193,7 @@ export default function CategoryForm({
             className="product-form-secondary-action"
             type="button"
             onClick={resetForm}
+            disabled={isSaving}
           >
             <RotateCcw size={16} />
             <span>Reinitialiser</span>
@@ -170,6 +202,7 @@ export default function CategoryForm({
             className="product-form-secondary-action"
             type="button"
             onClick={() => navigate('/admin/categories')}
+            disabled={isSaving}
           >
             Annuler
           </button>
@@ -177,9 +210,16 @@ export default function CategoryForm({
             className="product-form-primary-action"
             type="button"
             onClick={saveCategory}
+            disabled={isSaving}
           >
             <Save size={16} />
-            <span>{mode === 'edit' ? 'Mettre a jour' : 'Creer'}</span>
+            <span>
+              {isSaving
+                ? 'Enregistrement...'
+                : mode === 'edit'
+                  ? 'Mettre a jour'
+                  : 'Creer'}
+            </span>
           </button>
         </div>
       </section>
@@ -279,10 +319,10 @@ export default function CategoryForm({
             <label className="product-form-upload">
               <UploadCloud size={26} strokeWidth={1.6} />
               <strong>Ajouter une image</strong>
-              <span>Preview locale uniquement</span>
+              <span>JPG, PNG ou WebP</span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={changeImage}
               />
             </label>

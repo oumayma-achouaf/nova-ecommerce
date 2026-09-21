@@ -8,7 +8,7 @@ import {
 
 import { AuthContext } from './AuthContext'
 import favoriteService from '../services/favoriteService'
-import { products as localProducts } from '../pages/shop/catalogData'
+import { resolveMediaUrl } from '../services/media'
 
 const WishlistContext = createContext(null)
 
@@ -17,10 +17,6 @@ function formatPrice(value) {
 }
 
 function normalizeFavorite(favorite) {
-  const localProduct = localProducts.find(
-    (product) => product.id === favorite.slug,
-  )
-
   const priceValue = Number(favorite.price || 0)
 
   const oldPriceValue =
@@ -30,8 +26,6 @@ function normalizeFavorite(favorite) {
       : null
 
   return {
-    ...localProduct,
-
     id: favorite.slug,
 
     slug: favorite.slug,
@@ -45,7 +39,6 @@ function normalizeFavorite(favorite) {
     description:
       favorite.short_description ||
       favorite.description ||
-      localProduct?.description ||
       '',
 
     priceValue,
@@ -68,25 +61,18 @@ function normalizeFavorite(favorite) {
     featured: Boolean(favorite.featured),
 
     image:
-      favorite.image_url ||
-      localProduct?.image ||
-      '',
+      resolveMediaUrl(favorite.image_url),
 
     imageAlt:
       favorite.image_alt ||
-      localProduct?.imageAlt ||
       favorite.name ||
       'Produit NOVA',
 
     group:
-      localProduct?.group ||
-      favorite.category_name ||
-      '',
+      favorite.category_name || '',
 
     department:
-      favorite.category_name ||
-      localProduct?.department ||
-      '',
+      favorite.category_name || '',
 
     categoryName: favorite.category_name || '',
 

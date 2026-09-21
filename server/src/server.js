@@ -2,14 +2,19 @@ require('./config/env')
 
 const app = require('./app')
 const env = require('./config/env')
-const { ensureAuthSchema } = require('./config/db')
+const {
+  ensureAdminSchema,
+  ensureAuthSchema,
+} = require('./config/db')
 
 async function startServer() {
   try {
     await ensureAuthSchema()
     console.log('Auth database schema is ready.')
+    await ensureAdminSchema()
+    console.log('Admin database schema is ready.')
   } catch (error) {
-    console.error('Auth database schema could not be verified. Check MySQL/XAMPP configuration.')
+    console.error('Database schema could not be verified. Check MySQL/XAMPP configuration.')
     console.error(error.message)
   }
 
